@@ -17,7 +17,8 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           output: {
             manualChunks: undefined
-          }
+          },
+          external: ['html2canvas', 'jspdf'] // Externalize optional PDF dependencies
         }
       },
       plugins: [react()],

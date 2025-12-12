@@ -136,15 +136,21 @@ export const exportYearlyReportToCSV = (report: YearlyReport, filename: string =
 /**
  * Export dashboard as PDF (using html2canvas and jsPDF)
  * Note: This requires additional libraries - html2canvas and jspdf
+ * This function uses string-based dynamic imports to avoid build-time errors
  */
 export const exportDashboardToPDF = async (
   elementId: string, 
   filename: string = 'plexpulse-dashboard.pdf'
 ): Promise<void> => {
   try {
-    // Dynamic import for optional dependencies
-    const html2canvas = (await import('html2canvas')).default;
-    const { jsPDF } = await import('jspdf');
+    // String-based dynamic import to avoid build-time resolution
+    // @ts-ignore - Dynamic import with string to prevent build errors
+    const html2canvasModule = await import(/* @vite-ignore */ 'html2canvas');
+    const html2canvas = html2canvasModule.default || html2canvasModule;
+    
+    // @ts-ignore - Dynamic import with string to prevent build errors
+    const jspdfModule = await import(/* @vite-ignore */ 'jspdf');
+    const { jsPDF } = jspdfModule;
     
     const element = document.getElementById(elementId);
     if (!element) {
