@@ -15,6 +15,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1mAV94V701xkFZGZU3rgUAU
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Set `VITE_GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. (Optional) Configure `VITE_PLEX_PROXY_URL` to point to a backend that can forward Plex requests to avoid browser CORS issues.
+4. Run the app:
    `npm run dev`
