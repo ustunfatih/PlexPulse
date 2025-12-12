@@ -26,6 +26,24 @@ const getSystemInstruction = () => `
   Keep it concise (under 250 words total). Use emojis.
 `;
 
+const getLocalApiKey = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem('geminiApiKey');
+    }
+  } catch (error) {
+    console.warn('Unable to read local Gemini key', error);
+  }
+  return null;
+};
+
+const getApiKey = () =>
+  getLocalApiKey() ||
+  import.meta.env.VITE_GEMINI_API_KEY ||
+  import.meta.env.GEMINI_API_KEY ||
+  process.env.VITE_GEMINI_API_KEY ||
+  process.env.GEMINI_API_KEY;
+
 // Helper to handle API calls with retry for auth/permission issues
 async function withRetry<T>(
   apiCall: () => Promise<T>
@@ -52,7 +70,7 @@ async function withRetry<T>(
       console.log("Auth/Permission Error detected. Prompting for new API Key...");
       await window.aistudio.openSelectKey();
       
-      // Retry with new key (which is automatically injected into process.env.API_KEY)
+      // Retry with new key (AI Studio injects the selected key into the environment)
       try {
         console.log("Retrying operation with new key...");
         return await apiCall();
@@ -76,9 +94,8 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
   }
 
   const performGeneration = async () => {
-    // CRITICAL: process.env.API_KEY must be read INSIDE this function
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key is missing.");
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error("API Key is missing. Set VITE_GEMINI_API_KEY or GEMINI_API_KEY.");
 
     const ai = new GoogleGenAI({ apiKey });
     
@@ -100,7 +117,7 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
       }
     });
 
-    return response.text || "Could not generate insights.";
+    return response.response?.text || response.text || "Could not generate insights.";
   };
 
   try {
@@ -136,7 +153,7 @@ export const generateYearlyRecap = async (
 
   // Strategy 1: Flash Image (Primary - Most Stable/Permissive)
   const generateFlash = async () => {
-      const apiKey = process.env.API_KEY;
+      const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
@@ -150,14 +167,14 @@ export const generateYearlyRecap = async (
             }
         }
       });
-      return response;
+      return response.response || response;
   };
 
   // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
   const generatePro = async () => {
-      const apiKey = process.env.API_KEY;
+      const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key missing");
-      
+
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
@@ -169,7 +186,7 @@ export const generateYearlyRecap = async (
           }
         }
       });
-      return response;
+      return response.response || response;
   };
 
   // --- Execution Flow ---
@@ -177,7 +194,8 @@ export const generateYearlyRecap = async (
   try {
     // Attempt 1: Flash Model (Best for stability)
     const response = await withRetry(generateFlash);
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    const flashParts = response.candidates?.[0]?.content?.parts || [];
+    for (const part of flashParts) {
         if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
   } catch (error) {
@@ -186,7 +204,8 @@ export const generateYearlyRecap = async (
     // Attempt 2: Pro Model (Fallback)
     try {
         const response = await withRetry(generatePro);
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
+        const proParts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of proParts) {
             if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
     } catch (finalError) {
