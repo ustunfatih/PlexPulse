@@ -17,6 +17,8 @@ interface PlexMetadata {
   accountTitle?: string;
   accountUsername?: string;
   accountFriendlyName?: string;
+  userTitle?: string;
+  userName?: string;
   User?: {
     title?: string;
     username?: string;
@@ -49,14 +51,25 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   // We use standard JSON request headers. 
   const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&accountID=all&X-Plex-Token=${token}`;
 
-  try {
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        },
-        mode: 'cors'
+  const buildHistoryUrl = (includeAllAccounts: boolean) =>
+    `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000${includeAllAccounts ? '&accountID=all' : ''}&X-Plex-Token=${token}`;
+
+  const requestHistory = async (includeAllAccounts: boolean) =>
+    fetch(buildHistoryUrl(includeAllAccounts), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      },
+      mode: 'cors'
     });
+
+  try {
+    // Some Plex deployments reject accountID=all with 400. Try that first and gracefully
+    // fall back to the legacy request if needed so the user can still sign in.
+    let response = await requestHistory(true);
+    if (response.status === 400) {
+      response = await requestHistory(false);
+    }
 
     if (!response.ok) {
       if (response.status === 401) throw new Error("Invalid Plex Token.");
@@ -143,6 +156,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         const durationMinutes = Math.round(durationMs / 60000);
 
+        const userName = extractUserName(item);
         // Map User safely - Check multiple possible locations for user info
         // Plex API can return user info in different fields depending on version/config
         const userName =
