@@ -98,7 +98,9 @@ export const Reports: React.FC<ReportsProps> = ({ data, selectedUser, selectedMe
       let msg = "Failed to generate poster.";
       const errStr = (e.message || JSON.stringify(e)).toLowerCase();
 
-      if (errStr.includes('403') || errStr.includes('permission')) {
+      if (errStr.includes('api key missing') || errStr.includes('key is missing')) {
+          msg = "API Key Missing: Create a .env file with VITE_GEMINI_API_KEY=your_key. Get a key at https://aistudio.google.com/app/apikey";
+      } else if (errStr.includes('403') || errStr.includes('permission')) {
           msg = "Permission Denied: Ensure your API Key has the 'Generative Language API' enabled in Google Cloud Console and billing is active.";
       } else if (errStr.includes('quota') || errStr.includes('429')) {
           msg = "Quota Exceeded: You have hit the rate limit for image generation. Please try again later.";
@@ -106,8 +108,8 @@ export const Reports: React.FC<ReportsProps> = ({ data, selectedUser, selectedMe
           msg = "Model not available: The image generation model may not be enabled for your API key. Try enabling 'Imagen API' in Google Cloud Console.";
       } else if (errStr.includes('billing')) {
           msg = "Billing Required: Image generation requires a paid API plan. Please enable billing in Google Cloud Console.";
-      } else if (errStr.includes('api key') || errStr.includes('invalid')) {
-          msg = "Invalid API Key: Please check your VITE_GEMINI_API_KEY environment variable.";
+      } else if (errStr.includes('invalid') && errStr.includes('api')) {
+          msg = "Invalid API Key: Please check your VITE_GEMINI_API_KEY in the .env file.";
       }
       setPosterError(msg);
     } finally {
