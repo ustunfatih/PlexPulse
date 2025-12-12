@@ -26,15 +26,13 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   const cleanUrl = serverUrl.replace(/\/$/, '');
   
   // Construct the API URL
-  // Note: We request JSON, but many Plex servers/proxies will return XML anyway if they strip headers
+  // We remove 'Accept: application/json' to avoid triggering a CORS Preflight (OPTIONS) request.
+  // This increases the success rate for direct server connections.
   const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
+    // Simple GET request without custom headers
+    const response = await fetch(url);
 
     if (!response.ok) {
       if (response.status === 401) throw new Error("Invalid Plex Token.");
@@ -45,7 +43,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     const text = await response.text();
     let data: PlexMetadata[] = [];
 
-    // Attempt to parse as JSON first
+    // Attempt to parse as JSON first (though Plex defaults to XML without the header)
     try {
         const jsonData: PlexResponse = JSON.parse(text);
         if (jsonData.MediaContainer?.Metadata) {
@@ -102,8 +100,8 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     });
 
   } catch (error: any) {
-    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-      throw new Error("Network Error: Your browser blocked the request. This is common with direct Plex connections due to CORS. Please allow Mixed Content or use the CSV upload method if this persists.");
+    if (error.name === 'TypeError' && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
+      throw new Error("Network Error: Your browser blocked the request. This is likely a CORS issue common with web-based Plex tools. Please try the CSV Upload method instead.");
     }
     throw error;
   }
