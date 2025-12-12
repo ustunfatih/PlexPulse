@@ -19,6 +19,16 @@ interface PlexMetadata {
   accountFriendlyName?: string;
   userTitle?: string;
   userName?: string;
+  User?: {
+    title?: string;
+    username?: string;
+    friendlyName?: string;
+  };
+  Account?: {
+    title?: string;
+    username?: string;
+    friendlyName?: string;
+  };
   user?: string; // Direct field
   username?: string; // Direct field
   friendlyName?: string; // Direct field
@@ -36,6 +46,10 @@ interface PlexResponse {
 export const fetchPlexHistory = async (serverUrl: string, token: string): Promise<PlayHistoryItem[]> => {
   // normalize URL (remove trailing slash)
   const cleanUrl = serverUrl.replace(/\/$/, '');
+  
+  // Construct the API URL
+  // We use standard JSON request headers. 
+  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&accountID=all&X-Plex-Token=${token}`;
 
   const buildHistoryUrl = (includeAllAccounts: boolean) =>
     `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000${includeAllAccounts ? '&accountID=all' : ''}&X-Plex-Token=${token}`;
@@ -143,6 +157,22 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
         const durationMinutes = Math.round(durationMs / 60000);
 
         const userName = extractUserName(item);
+        // Map User safely - Check multiple possible locations for user info
+        // Plex API can return user info in different fields depending on version/config
+        const userName =
+          item.user || // Direct field
+          item.username || // Direct username field
+          item.friendlyName || // Direct friendly name
+          item.accountTitle || // Some servers expose account info as flat fields
+          item.accountUsername ||
+          item.accountFriendlyName ||
+          item.User?.title || // User object title
+          item.User?.username || // User object username
+          item.User?.friendlyName || // User object friendly name
+          item.Account?.title || // Account object title
+          item.Account?.username || // Account object username
+          item.Account?.friendlyName || // Account object friendly name
+          'Server Owner'; // Fallback
 
         return {
             title: item.title,
