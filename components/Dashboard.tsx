@@ -21,10 +21,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       
       {/* iOS Style Segmented Control Navigation */}
-      <div className="sticky top-20 z-40 py-6 bg-black/80 backdrop-blur-xl">
+      <div className="sticky top-16 z-40 py-6">
         <div className="flex justify-between items-center">
             {/* Segmented Control */}
-            <div className="bg-[#1C1C1E] p-1 rounded-xl flex items-center shadow-inner border border-white/5 w-full max-w-sm">
+            <div className="bg-[#1C1C1E] p-1 rounded-xl flex items-center shadow-inner border border-white/5 w-full max-w-sm backdrop-blur-md">
             <button
                 onClick={() => setActiveTab('overview')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${

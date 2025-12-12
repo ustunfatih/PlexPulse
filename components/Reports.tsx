@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
@@ -340,12 +341,12 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
         
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 z-10 shadow-lg">
+                <thead className="shadow-lg">
                     <tr className="bg-[#15171C] text-gray-500 text-xs uppercase tracking-wider">
-                        <th className="p-5 font-bold border-b border-white/5">Month</th>
-                        <th className="p-5 font-bold border-b border-white/5 w-1/2">Most Watched</th>
-                        <th className="p-5 font-bold border-b border-white/5 text-right">Plays</th>
-                        <th className="p-5 font-bold border-b border-white/5 text-right">Watch Time</th>
+                        <th className="sticky top-0 z-20 bg-[#15171C] p-5 font-bold border-b border-white/5">Month</th>
+                        <th className="sticky top-0 z-20 bg-[#15171C] p-5 font-bold border-b border-white/5 w-1/2">Most Watched</th>
+                        <th className="sticky top-0 z-20 bg-[#15171C] p-5 font-bold border-b border-white/5 text-right">Plays</th>
+                        <th className="sticky top-0 z-20 bg-[#15171C] p-5 font-bold border-b border-white/5 text-right">Watch Time</th>
                     </tr>
                 </thead>
                 <tbody className="text-sm">
@@ -395,12 +396,14 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   );
 };
 
-const StatBox = ({ label, value, icon }: any) => (
-  <div className="glass-card p-4 sm:p-6 rounded-3xl flex flex-col justify-between h-full min-h-[120px]">
-    <div className="bg-gray-800/50 w-8 h-8 rounded-lg flex items-center justify-center mb-4">{icon}</div>
+const StatBox = ({ label, value, icon }: { label: string, value: string | number, icon: React.ReactNode }) => (
+  <div className="glass-card p-6 rounded-3xl flex items-center justify-between border border-white/5 hover:border-white/10 transition-colors">
     <div>
-        <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">{value}</div>
-        <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">{label}</div>
+       <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">{label}</p>
+       <p className="text-3xl font-black text-white tracking-tight">{value}</p>
+    </div>
+    <div className="w-12 h-12 rounded-2xl bg-[#1C1C1E] border border-white/5 flex items-center justify-center shadow-inner">
+       {icon}
     </div>
   </div>
 );
