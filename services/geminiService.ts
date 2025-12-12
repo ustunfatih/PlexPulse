@@ -105,7 +105,7 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
       }
     });
 
-    return response.text || "Could not generate insights.";
+    return response.response?.text || response.text || "Could not generate insights.";
   };
 
   try {
@@ -155,14 +155,14 @@ export const generateYearlyRecap = async (
             }
         }
       });
-      return response;
+      return response.response || response;
   };
 
   // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
   const generatePro = async () => {
       const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key missing");
-      
+
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
@@ -174,7 +174,7 @@ export const generateYearlyRecap = async (
           }
         }
       });
-      return response;
+      return response.response || response;
   };
 
   // --- Execution Flow ---
@@ -182,7 +182,8 @@ export const generateYearlyRecap = async (
   try {
     // Attempt 1: Flash Model (Best for stability)
     const response = await withRetry(generateFlash);
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    const flashParts = response.candidates?.[0]?.content?.parts || [];
+    for (const part of flashParts) {
         if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
   } catch (error) {
@@ -191,7 +192,8 @@ export const generateYearlyRecap = async (
     // Attempt 2: Pro Model (Fallback)
     try {
         const response = await withRetry(generatePro);
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
+        const proParts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of proParts) {
             if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
     } catch (finalError) {

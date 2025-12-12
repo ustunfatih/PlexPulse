@@ -19,3 +19,5 @@ View your app in AI Studio: https://ai.studio/apps/drive/1mAV94V701xkFZGZU3rgUAU
 3. (Optional) Configure `VITE_PLEX_PROXY_URL` to point to a backend that can forward Plex requests to avoid browser CORS issues.
 4. Run the app:
    `npm run dev`
+
+> Deployed builds (e.g., Vercel) need the `VITE_GEMINI_API_KEY` env var exposed to the client. If the AI Analysis tile still reports a missing or billing-disabled key, click **Set API Key** in the AI Analysis card to store your key securely in your browser's local storage.
