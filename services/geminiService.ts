@@ -82,12 +82,16 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
 
     const ai = new GoogleGenAI({ apiKey });
     
+    // Create copies of arrays before sorting to avoid mutating read-only state
+    const busiestDayObj = [...summary.playsByDayOfWeek].sort((a,b) => b.count - a.count)[0];
+    const peakHourObj = [...summary.playsByHour].sort((a,b) => b.count - a.count)[0];
+
     const dataContext = JSON.stringify({
       totalHours: summary.totalDurationHours,
       topMovies: summary.topMovies.slice(0, 3),
       topShows: summary.topShows.slice(0, 3),
-      busiestDay: summary.playsByDayOfWeek.sort((a,b) => b.count - a.count)[0]?.day,
-      peakHour: summary.playsByHour.sort((a,b) => b.count - a.count)[0]?.hour,
+      busiestDay: busiestDayObj?.day,
+      peakHour: peakHourObj?.hour,
       mediaSplit: summary.mediaTypeDistribution
     });
 

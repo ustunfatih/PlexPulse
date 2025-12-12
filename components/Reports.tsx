@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
@@ -155,6 +156,9 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     'January', 'February', 'March', 'April', 'May', 'June', 
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  // Calculate max hours for the progress bar scaling
+  const maxMonthlyHours = Math.max(...currentReport.monthlyBreakdown.map(m => m.totalHours), 1);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -327,57 +331,64 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* 4. Monthly Chronicles Grid */}
-      <div>
-        <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-           Monthly Chronicles
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {currentReport.monthlyBreakdown.map((month) => (
-              <div key={month.monthKey} className="group relative bg-[#151515] rounded-3xl border border-white/5 overflow-hidden hover:border-[#e5a00d]/50 transition-all duration-300 hover:transform hover:scale-[1.01] hover:shadow-2xl flex flex-col h-[320px]">
-                
-                {/* Background Decoration */}
-                <div className="absolute inset-0 z-0">
-                    <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0f1115]" />
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-[0.03] rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
-                </div>
-
-                {/* Content Layer */}
-                <div className="relative z-10 p-6 flex flex-col h-full justify-between">
-                    
-                    <div className="flex justify-between items-start">
-                        <h4 className="font-black text-3xl text-white tracking-tight">{month.monthName}</h4>
-                        <span className="font-mono text-xs bg-white/10 backdrop-blur px-2 py-1 rounded-md text-white border border-white/10">
-                            {month.totalHours} hrs
-                        </span>
-                    </div>
-
-                    <div className="space-y-6">
-                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                            <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2">Most Watched {selectedMediaType === 'movie' ? 'Movie' : selectedMediaType === 'episode' ? 'Show' : 'Title'}</div>
-                            <div className="text-[#e5a00d] font-bold text-xl leading-tight line-clamp-2">
-                                {month.topItem || "Nothing watched"}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Plays</div>
-                                <div className="text-xl font-mono text-white">{month.playCount}</div>
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                                    {selectedMediaType === 'movie' ? 'Intensity' : 'Binge Score'}
-                                </div>
-                                <div className={`text-xl font-mono font-bold ${month.bingeScore > 5 ? 'text-red-400' : 'text-green-400'}`}>
-                                    {month.bingeScore}<span className="text-xs text-gray-500">/10</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-              </div>
-          ))}
+      {/* 4. Monthly Chronicles (Table Style) */}
+      <div className="glass-card rounded-3xl overflow-hidden border border-white/5">
+        <div className="p-6 border-b border-white/5 bg-[#1C1C1E]">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#e5a00d]" /> Monthly Chronicles
+            </h3>
+        </div>
+        
+        <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-[#15171C] text-gray-500 text-xs uppercase tracking-wider">
+                        <th className="p-5 font-bold border-b border-white/5">Month</th>
+                        <th className="p-5 font-bold border-b border-white/5 w-1/2">Most Watched</th>
+                        <th className="p-5 font-bold border-b border-white/5 text-right">Plays</th>
+                        <th className="p-5 font-bold border-b border-white/5 text-right">Watch Time</th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm">
+                    {currentReport.monthlyBreakdown.map((month) => {
+                        const intensity = (month.totalHours / maxMonthlyHours) * 100;
+                        return (
+                            <tr key={month.monthKey} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                                <td className="p-5 font-bold text-white">
+                                    {month.monthName}
+                                </td>
+                                <td className="p-5">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${month.topItemType === 'episode' ? 'bg-green-500/10' : month.topItemType === 'movie' ? 'bg-blue-500/10' : 'bg-gray-800'}`}>
+                                            {month.topItemType === 'episode' ? <Tv className="w-4 h-4 text-green-400" /> : 
+                                             month.topItemType === 'movie' ? <Film className="w-4 h-4 text-blue-400" /> : 
+                                             <Clapperboard className="w-4 h-4 text-gray-400" />}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-white font-medium line-clamp-1">{month.topItem || 'Nothing watched'}</span>
+                                            <span className="text-xs text-gray-500 capitalize">{month.topItemType}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="p-5 text-right font-mono text-gray-300">
+                                    {month.playCount}
+                                </td>
+                                <td className="p-5 text-right">
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="font-mono text-white font-bold">{month.totalHours} hrs</span>
+                                        <div className="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full rounded-full bg-gradient-to-r from-[#e5a00d] to-yellow-200"
+                                                style={{ width: `${intensity}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
       </div>
 

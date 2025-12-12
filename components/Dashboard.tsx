@@ -1,13 +1,12 @@
+
 import React, { useState } from 'react';
 import { AnalyticsSummary, PlayHistoryItem, TopItem } from '../types';
 import { 
-  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart 
+  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart, DurationDistributionChart 
 } from './Charts';
 import { Reports } from './Reports';
-import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play } from 'lucide-react';
-import { generateInsight } from '../services/geminiService';
+import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play, Hourglass, PieChart } from 'lucide-react';
 import { APP_COLORS } from '../constants';
-import ReactMarkdown from 'react-markdown';
 
 interface DashboardProps {
   summary: AnalyticsSummary;
@@ -17,15 +16,6 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview');
-  const [insight, setInsight] = useState<string | null>(null);
-  const [loadingInsight, setLoadingInsight] = useState(false);
-
-  const handleGetInsight = async () => {
-    setLoadingInsight(true);
-    const text = await generateInsight(summary);
-    setInsight(text);
-    setLoadingInsight(false);
-  };
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
@@ -91,38 +81,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                 </div>
              </div>
 
-             {/* AI Insight Card */}
-             <div 
-                onClick={handleGetInsight}
-                className="col-span-1 md:col-span-4 rounded-3xl p-1 bg-gradient-to-br from-[#e5a00d] to-[#b47d0b] shadow-xl cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
-             >
-                <div className="bg-[#121212] h-full w-full rounded-[20px] p-6 flex flex-col relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#e5a00d] opacity-10 blur-[50px] rounded-full"></div>
-                    
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="bg-[#e5a00d] text-black p-2 rounded-lg">
-                            <Sparkles className="w-5 h-5" />
-                        </div>
-                        <h3 className="text-lg font-bold text-white">AI Analysis</h3>
+             {/* Time Investment Chart (Replaces AI Analysis) */}
+             <div className="col-span-1 md:col-span-4 glass-card rounded-3xl p-6 flex flex-col">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="bg-gray-800/50 p-2 rounded-lg"><Hourglass className="w-5 h-5 text-blue-400" /></div>
+                    <div>
+                        <h3 className="font-bold text-lg text-white">Time Investment</h3>
+                        <p className="text-xs text-gray-500">Duration by format</p>
                     </div>
-
-                    <div className="flex-1 flex flex-col justify-center">
-                        {loadingInsight ? (
-                            <div className="flex items-center gap-3 text-[#e5a00d]">
-                                <div className="w-2 h-2 bg-[#e5a00d] rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-[#e5a00d] rounded-full animate-bounce delay-100"></div>
-                                <div className="w-2 h-2 bg-[#e5a00d] rounded-full animate-bounce delay-200"></div>
-                            </div>
-                        ) : insight ? (
-                            <div className="prose prose-invert prose-sm max-w-none text-gray-300 line-clamp-6 leading-relaxed">
-                                <ReactMarkdown>{insight}</ReactMarkdown>
-                            </div>
-                        ) : (
-                            <p className="text-gray-400 text-sm">
-                                Tap here to let Gemini analyze your viewing habits and give you a vibe check.
-                            </p>
-                        )}
-                    </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                    <DurationDistributionChart summary={summary} />
                 </div>
              </div>
           </div>
@@ -143,7 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             <div className="glass-card rounded-3xl p-6 flex flex-col">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="bg-gray-800/50 p-2 rounded-lg"><Film className="w-5 h-5 text-[#e5a00d]" /></div>
-                    <h3 className="font-bold text-lg">Format Distribution</h3>
+                    <h3 className="font-bold text-lg">Play Counts</h3>
                 </div>
                 <div className="flex-1 min-h-0">
                     <MediaTypePieChart summary={summary} />

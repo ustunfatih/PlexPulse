@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, AreaChart, Area, CartesianGrid
+  Cell, PieChart, Pie, AreaChart, Area, CartesianGrid, Legend
 } from 'recharts';
 import { AnalyticsSummary, HeatmapPoint } from '../types';
 import { APP_COLORS } from '../constants';
@@ -14,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#e5a00d]"></div>
             <p className="text-white text-sm font-bold">
-            {payload[0].value} <span className="text-gray-500 font-normal">{payload[0].name === 'durationHours' ? 'hrs' : 'plays'}</span>
+            {payload[0].value} <span className="text-gray-500 font-normal">{payload[0].name === 'durationHours' ? 'hrs' : payload[0].unit || 'plays'}</span>
             </p>
         </div>
       </div>
@@ -124,6 +125,60 @@ export const MediaTypePieChart: React.FC<{ summary: AnalyticsSummary }> = ({ sum
     </div>
   );
 };
+
+export const DurationDistributionChart: React.FC<{ summary: AnalyticsSummary }> = ({ summary }) => {
+    if (!summary.durationByType || summary.durationByType.length === 0) {
+      return <div className="h-64 w-full flex items-center justify-center text-gray-500 text-xs">No duration data</div>;
+    }
+  
+    // Map custom colors for specific types for better visual distinction
+    const getColor = (name: string) => {
+        if(name.includes('movie')) return '#3b82f6'; // Blue
+        if(name.includes('episode')) return '#22c55e'; // Green
+        return '#e5a00d'; // Default Orange
+    };
+  
+    return (
+      <div className="h-64 w-full relative">
+         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <PieChart>
+            <Pie
+              data={summary.durationByType}
+              cx="50%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={80}
+              paddingAngle={6}
+              dataKey="value"
+              stroke="none"
+              nameKey="name"
+            >
+              {summary.durationByType.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={getColor(entry.name)} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        
+        {/* Centered Stat */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-3xl font-black text-white">{summary.totalDurationHours}</span>
+          <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Hours</span>
+        </div>
+  
+        {/* Legend */}
+        <div className="absolute bottom-0 w-full flex justify-center gap-4">
+          {summary.durationByType.map((item, index) => (
+              <div key={item.name} className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getColor(item.name) }}></div>
+                  <span className="text-xs text-gray-400 capitalize">{item.name}</span>
+              </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
 export const MonthlyTrendChart: React.FC<{ summary: AnalyticsSummary }> = ({ summary }) => {
   if (!summary.playsByMonth || summary.playsByMonth.length === 0) {

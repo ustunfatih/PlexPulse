@@ -26,6 +26,7 @@ export interface AnalyticsSummary {
   playsByDayOfWeek: { day: string; count: number }[];
   playsByMonth: { month: string; count: number }[];
   mediaTypeDistribution: { name: string; value: number }[];
+  durationByType: { name: string; value: number }[]; // New field for Time Investment chart
 }
 
 export interface ChartDataPoint {

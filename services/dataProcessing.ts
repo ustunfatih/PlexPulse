@@ -12,6 +12,7 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
     playsByDayOfWeek: [],
     playsByMonth: [],
     mediaTypeDistribution: [],
+    durationByType: [],
   };
 
   const movieStats: Record<string, TopItem> = {};
@@ -20,6 +21,7 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
   const dayCounts: Record<number, number> = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0 }; // 0=Sun
   const monthCounts: Record<string, number> = {};
   const typeCounts: Record<string, number> = { movie: 0, episode: 0, track: 0, unknown: 0 };
+  const typeDuration: Record<string, number> = { movie: 0, episode: 0, track: 0, unknown: 0 };
 
   data.forEach(item => {
     const duration = (typeof item.durationMinutes === 'number' && !isNaN(item.durationMinutes)) 
@@ -31,6 +33,7 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
 
     const type = item.type || 'unknown';
     typeCounts[type] = (typeCounts[type] || 0) + 1;
+    typeDuration[type] = (typeDuration[type] || 0) + (duration / 60); // Store in hours
 
     // Top Lists
     if (type === 'movie' && item.title) {
@@ -82,6 +85,10 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
   summary.mediaTypeDistribution = Object.entries(typeCounts)
     .filter(([_, value]) => value > 0)
     .map(([name, value]) => ({ name, value }));
+    
+  summary.durationByType = Object.entries(typeDuration)
+    .filter(([_, value]) => value > 0)
+    .map(([name, value]) => ({ name, value: Math.round(value * 10) / 10 }));
 
   summary.totalDurationHours = Math.round(summary.totalDurationHours || 0);
 
@@ -145,13 +152,27 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
       const totalHours = Math.round(totalMinutes / 60);
       
       const counts: Record<string, number> = {};
+      const typeCounts: Record<string, number> = {};
+      
       mItems.forEach(i => {
         const name = i.type === 'episode' ? (i.grandparentTitle || i.title) : i.title;
         if (name) counts[name] = (counts[name] || 0) + 1;
+        typeCounts[i.type] = (typeCounts[i.type] || 0) + 1;
       });
+      
       const sortedEntries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
       const topEntry: [string, number] = sortedEntries.length > 0 ? sortedEntries[0] : ['None', 0];
       
+      // Determine dominant type for top item
+      // We can infer type from the item collection, but simple heuristic:
+      let topItemType = 'mixed';
+      // Find the type of the top item by looking it up in mItems
+      const topItemSample = mItems.find(i => 
+        (i.type === 'episode' && (i.grandparentTitle === topEntry[0] || i.title === topEntry[0])) ||
+        (i.type === 'movie' && i.title === topEntry[0])
+      );
+      if (topItemSample) topItemType = topItemSample.type;
+
       // Binge Score
       const activeDaysSet = new Set(mItems.map(i => i.date.toDateString()));
       const episodes = mItems.filter(i => i.type === 'episode').length;
@@ -166,12 +187,19 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
         year,
         totalHours: isNaN(totalHours) ? 0 : totalHours,
         topItem: topEntry[0],
-        topItemType: 'mixed',
+        topItemType,
         playCount: mItems.length,
         bingeScore: Math.min(10, Math.round(bingeScore * 10) / 10)
       };
-    }).sort((a,b) => a.monthKey.localeCompare(b.monthKey));
+    });
+    
+    // Sort chronologically (Jan -> Dec)
+    monthlyBreakdown.sort((a,b) => a.monthKey.localeCompare(b.monthKey));
 
+    // Calculate busiest month (using a copy to avoid sorting the main array)
+    const sortedByHours = [...monthlyBreakdown].sort((a,b) => b.totalHours - a.totalHours);
+    const busiest = sortedByHours[0];
+    
     // Streaks
     const uniqueDays = Array.from(new Set(items.map(i => i.date.toDateString())))
       .map(d => new Date(d).getTime())
@@ -198,7 +226,6 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
       prevTime = time;
     });
 
-    const busiest = monthlyBreakdown.sort((a,b) => b.totalHours - a.totalHours)[0];
     const totalYearMinutes = items.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
     const finalYearHours = Math.round(totalYearMinutes / 60);
 
