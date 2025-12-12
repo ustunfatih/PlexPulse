@@ -2,17 +2,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
 import { ActivityHeatmap } from './Charts';
-import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays, AlertTriangle } from 'lucide-react';
+import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, CalendarDays, AlertTriangle } from 'lucide-react';
 import { generateYearlyRecap } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
+import { MediaTypeOption } from './FilterControls';
 
 interface ReportsProps {
   data: PlayHistoryItem[];
+  selectedUser: string;
+  selectedMediaType: MediaTypeOption;
 }
 
-export const Reports: React.FC<ReportsProps> = ({ data }) => {
-  const [selectedUser, setSelectedUser] = useState<string>('all');
-  const [selectedMediaType, setSelectedMediaType] = useState<'all' | 'movie' | 'episode'>('all');
+export const Reports: React.FC<ReportsProps> = ({ data, selectedUser, selectedMediaType }) => {
   const [yearIndex, setYearIndex] = useState(0);
   
   // Heatmap State
@@ -25,41 +26,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const [loadingPoster, setLoadingPoster] = useState(false);
   const [posterError, setPosterError] = useState<string | null>(null);
 
-  // Extract unique users
-  const users = useMemo(() => {
-    const u = new Set<string>();
-    data.forEach(d => {
-      if (d.user) u.add(d.user);
-    });
-    return Array.from(u).sort();
-  }, [data]);
-
-  useEffect(() => {
-    if (selectedUser !== 'all' && !users.includes(selectedUser)) {
-        setSelectedUser('all');
-    }
-  }, [users, selectedUser]);
-
-  // Filter Data based on User AND Media Type
-  const filteredData = useMemo(() => {
-    let d = data;
-    
-    // Filter by User
-    if (selectedUser !== 'all') {
-      d = d.filter(x => x.user === selectedUser);
-    }
-
-    // Filter by Media Type
-    if (selectedMediaType === 'movie') {
-      d = d.filter(x => x.type === 'movie');
-    } else if (selectedMediaType === 'episode') {
-      d = d.filter(x => x.type === 'episode');
-    }
-
-    return d;
-  }, [data, selectedUser, selectedMediaType]);
-
-  const reports = useMemo(() => processReports(filteredData), [filteredData]);
+  const reports = useMemo(() => processReports(data), [data]);
 
   const safeYearIndex = reports.length > 0 ? Math.min(yearIndex, Math.max(0, reports.length - 1)) : 0;
   const currentReport = reports.length > 0 ? reports[safeYearIndex] : null;
@@ -93,27 +60,33 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     if (heatmapMode === 'weekly') {
       return currentReport.heatmapData;
     } else if (heatmapMode === 'monthly') {
-      return generateMonthlyHeatmap(filteredData, currentReport.year, selectedHeatmapMonth);
+        return generateMonthlyHeatmap(data, currentReport.year, selectedHeatmapMonth);
     } else {
       // For yearly, find the report for the selected year
       const reportForYear = reports.find(r => r.year === selectedHeatmapYear);
       return reportForYear ? reportForYear.dailyActivity : currentReport.dailyActivity;
     }
-  }, [currentReport, heatmapMode, selectedHeatmapMonth, filteredData, selectedHeatmapYear, reports]);
+  }, [currentReport, heatmapMode, selectedHeatmapMonth, data, selectedHeatmapYear, reports]);
 
   const handleGenerateYearlyPoster = async () => {
     if (!currentReport) return;
+
+    // Avoid calling the API when there's nothing to visualize
+    const topItems = currentReport.monthlyBreakdown
+      .map(m => m.topItem)
+      .filter(item => item && item !== 'None');
+
+    if (topItems.length === 0) {
+      setPosterError("No standout titles to showcase for this year yet.");
+      return;
+    }
+
     setLoadingPoster(true);
     setPosterError(null);
-    
+
     try {
-      // Collect the top item from each month
-      const topItems = currentReport.monthlyBreakdown
-        .map(m => m.topItem)
-        .filter(item => item && item !== 'None');
-      
       const label = selectedMediaType === 'movie' ? 'movies' : selectedMediaType === 'episode' ? 'TV shows' : 'titles';
-      
+
       const imageUrl = await generateYearlyRecap(currentReport.year, topItems, label);
       if (imageUrl) {
         setYearlyPoster(imageUrl);
@@ -139,13 +112,9 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   if (!currentReport) {
       return (
         <div className="p-12 text-center flex flex-col items-center justify-center space-y-6 animate-fade-in min-h-[50vh]">
-           <div className="flex flex-col sm:flex-row gap-4">
-              <UserFilterDropdown users={users} selected={selectedUser} onSelect={setSelectedUser} />
-              <MediaTypeSelector selected={selectedMediaType} onSelect={setSelectedMediaType} />
-           </div>
            <div className="glass-card p-10 rounded-3xl border border-white/10 max-w-md">
              <p className="text-xl font-bold mb-2 text-white">No Reports Available</p>
-             <p className="text-gray-400">We couldn't generate a report for the selected filters. Try changing the year or media type.</p>
+             <p className="text-gray-400">We couldn't generate a report for the selected filters. Try broadening the filters or switching the year.</p>
            </div>
         </div>
       );
@@ -159,12 +128,12 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   return (
     <div className="space-y-8 animate-fade-in">
       
-      {/* 1. Filter Control Bar (Placement: Below Tabs, Sticky) */}
+      {/* 1. Year Selector */}
       <div className="flex flex-col xl:flex-row gap-6 justify-between items-center mb-8 sticky top-[108px] z-30 p-4 rounded-2xl glass border border-white/5 transition-all">
          {/* Year Selector */}
          <div className="flex items-center gap-4 w-full xl:w-auto justify-between xl:justify-start">
-            <button 
-              onClick={handlePrev} 
+            <button
+              onClick={handlePrev}
               disabled={safeYearIndex >= reports.length - 1}
               className="w-12 h-12 flex items-center justify-center bg-[#2C2C2E] hover:bg-[#3A3A3C] rounded-full disabled:opacity-30 transition-all active:scale-90"
             >
@@ -173,19 +142,13 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
             <div className="text-center">
                <h2 className="text-3xl font-black text-white tracking-tighter tabular-nums">{currentReport.year}</h2>
             </div>
-            <button 
-              onClick={handleNext} 
+            <button
+              onClick={handleNext}
               disabled={safeYearIndex <= 0}
               className="w-12 h-12 flex items-center justify-center bg-[#2C2C2E] hover:bg-[#3A3A3C] rounded-full disabled:opacity-30 transition-all active:scale-90"
             >
               <ChevronRight className="w-6 h-6 text-white" />
             </button>
-         </div>
-
-         {/* Filters */}
-         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-            <MediaTypeSelector selected={selectedMediaType} onSelect={setSelectedMediaType} />
-            <UserFilterDropdown users={users} selected={selectedUser} onSelect={setSelectedUser} />
          </div>
       </div>
 
@@ -334,7 +297,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentReport.monthlyBreakdown.map((month) => (
-              <div key={month.monthKey} className="group relative bg-[#151515] rounded-3xl border border-white/5 overflow-hidden hover:border-[#e5a00d]/50 transition-all duration-300 hover:transform hover:scale-[1.01] hover:shadow-2xl flex flex-col h-[320px]">
+              <div key={month.monthKey} className="group relative bg-[#151515] rounded-3xl border border-white/5 overflow-hidden hover:border-[#e5a00d]/50 transition-all duration-300 hover:transform hover:scale-[1.01] hover:shadow-2xl flex flex-col min-h-[220px]">
                 
                 {/* Background Decoration */}
                 <div className="absolute inset-0 z-0">
@@ -343,16 +306,25 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                 </div>
 
                 {/* Content Layer */}
-                <div className="relative z-10 p-6 flex flex-col h-full justify-between">
+                <div className="relative z-10 p-6 flex flex-col gap-6 h-full">
                     
-                    <div className="flex justify-between items-start">
-                        <h4 className="font-black text-3xl text-white tracking-tight">{month.monthName}</h4>
-                        <span className="font-mono text-xs bg-white/10 backdrop-blur px-2 py-1 rounded-md text-white border border-white/10">
-                            {month.totalHours} hrs
-                        </span>
+                    <div className="flex justify-between items-start gap-3">
+                        <div className="flex flex-col gap-1">
+                            <h4 className="font-black text-3xl text-white tracking-tight">{month.monthName}</h4>
+                            <span className="text-xs text-gray-400 uppercase tracking-[0.2em] font-semibold">{currentReport.year}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-gradient-to-br from-[#e5a00d]/20 via-[#e5a00d]/10 to-transparent border border-[#e5a00d]/40 rounded-2xl px-3 py-2 shadow-[0_10px_30px_-15px_rgba(229,160,13,0.8)]">
+                            <div className="w-10 h-10 rounded-xl bg-[#e5a00d]/20 flex items-center justify-center">
+                                <Clock className="w-5 h-5 text-[#e5a00d]" />
+                            </div>
+                            <div className="leading-tight">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-[#e5a00d]">Hours</div>
+                                <div className="text-xl font-black text-white tabular-nums">{month.totalHours}</div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="space-y-6 flex-1">
                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                             <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2">Most Watched {selectedMediaType === 'movie' ? 'Movie' : selectedMediaType === 'episode' ? 'Show' : 'Title'}</div>
                             <div className="text-[#e5a00d] font-bold text-xl leading-tight line-clamp-2">
@@ -384,51 +356,6 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     </div>
   );
 };
-
-const UserFilterDropdown = ({ users, selected, onSelect }: { users: string[], selected: string, onSelect: (u: string) => void }) => (
-    <div className="relative group w-full sm:w-auto">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-            <Users className="w-4 h-4" />
-        </div>
-        <select 
-            value={selected}
-            onChange={(e) => onSelect(e.target.value)}
-            disabled={users.length === 0}
-            className="appearance-none w-full sm:w-[200px] bg-[#2C2C2E] text-white pl-10 pr-8 py-3 rounded-xl text-sm font-bold border border-transparent hover:border-gray-600 focus:border-[#e5a00d] outline-none cursor-pointer transition-colors disabled:opacity-50 shadow-sm"
-        >
-            <option value="all">All Users</option>
-            {users.map(u => (
-            <option key={u} value={u}>{u}</option>
-            ))}
-        </select>
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-            <ChevronDown className="w-4 h-4" />
-        </div>
-    </div>
-);
-
-const MediaTypeSelector = ({ selected, onSelect }: { selected: any, onSelect: (v: any) => void }) => (
-    <div className="flex bg-[#2C2C2E] p-1 rounded-xl border border-white/5 w-full sm:w-auto">
-       <button
-         onClick={() => onSelect('all')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${selected === 'all' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         All
-       </button>
-       <button
-         onClick={() => onSelect('movie')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${selected === 'movie' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         <Film className="w-3 h-3" /> Movies
-       </button>
-       <button
-         onClick={() => onSelect('episode')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${selected === 'episode' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         <Tv className="w-3 h-3" /> Shows
-       </button>
-    </div>
-);
 
 const StatBox = ({ label, value, icon }: any) => (
   <div className="glass-card p-4 sm:p-6 rounded-3xl flex flex-col justify-between h-full min-h-[120px]">

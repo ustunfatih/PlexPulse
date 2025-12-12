@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AnalyticsSummary, PlayHistoryItem, TopItem } from '../types';
-import { 
-  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart 
+import {
+  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart
 } from './Charts';
 import { Reports } from './Reports';
 import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play } from 'lucide-react';
 import { generateInsight } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
+import { processHistoryData } from '../services/dataProcessing';
+import { MediaTypeOption, MediaTypeSelector, UserFilterDropdown } from './FilterControls';
 
 interface DashboardProps {
   summary: AnalyticsSummary;
@@ -18,12 +20,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
   const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview');
   const [insight, setInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [selectedMediaType, setSelectedMediaType] = useState<MediaTypeOption>('all');
+  const [apiKeyHint, setApiKeyHint] = useState<string | null>(null);
+
+  const users = useMemo(() => {
+    const unique = new Set<string>();
+    rawData.forEach((d) => {
+      if (d.user) unique.add(d.user);
+    });
+    return Array.from(unique).sort();
+  }, [rawData]);
+
+  useEffect(() => {
+    if (selectedUser !== 'all' && !users.includes(selectedUser)) {
+      setSelectedUser('all');
+    }
+  }, [users, selectedUser]);
+
+  const filteredData = useMemo(() => {
+    let filtered = rawData;
+
+    if (selectedUser !== 'all') {
+      filtered = filtered.filter((item) => item.user === selectedUser);
+    }
+
+    if (selectedMediaType === 'movie') {
+      filtered = filtered.filter((item) => item.type === 'movie');
+    } else if (selectedMediaType === 'episode') {
+      filtered = filtered.filter((item) => item.type === 'episode');
+    }
+
+    return filtered;
+  }, [rawData, selectedUser, selectedMediaType]);
+
+  const filteredSummary = useMemo(() => {
+    if (filteredData.length === rawData.length) return summary;
+    return processHistoryData(filteredData);
+  }, [filteredData, rawData.length, summary]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('geminiApiKey');
+      if (stored) {
+        setApiKeyHint('Custom key saved');
+      }
+    }
+  }, []);
 
   const handleGetInsight = async () => {
     setLoadingInsight(true);
-    const text = await generateInsight(summary);
+    const text = await generateInsight(filteredSummary);
     setInsight(text);
     setLoadingInsight(false);
+  };
+
+  const handleApiKeyUpdate = () => {
+    const value = window.prompt('Enter your Gemini API Key (kept locally in this browser)');
+    if (value) {
+      localStorage.setItem('geminiApiKey', value.trim());
+      setApiKeyHint('Custom key saved');
+    }
   };
 
   return (
@@ -56,17 +113,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             </button>
             </div>
 
-            <button 
+            <button
                 onClick={onReset}
                 className="hidden sm:block text-xs font-medium text-gray-500 hover:text-[#e5a00d] transition-colors"
             >
                 Switch Source
             </button>
         </div>
+
+        <div className="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <MediaTypeSelector selected={selectedMediaType} onSelect={setSelectedMediaType} />
+            <UserFilterDropdown users={users} selected={selectedUser} onSelect={setSelectedUser} />
+          </div>
+          {filteredData.length === 0 && (
+            <p className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl">No plays match these filters.</p>
+          )}
+        </div>
       </div>
 
       {activeTab === 'reports' ? (
-        <Reports data={rawData} />
+        <Reports
+          data={filteredData}
+          selectedUser={selectedUser}
+          selectedMediaType={selectedMediaType}
+        />
       ) : (
         <div className="animate-fade-in space-y-6">
           
@@ -80,12 +151,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                     <h2 className="text-gray-400 font-medium text-lg mb-1">Total Watch Time</h2>
                     <div className="flex items-baseline gap-2">
                         <span className="text-5xl sm:text-7xl font-black text-white tracking-tighter">
-                            {summary.totalDurationHours.toLocaleString()}
+                            {filteredSummary.totalDurationHours.toLocaleString()}
                         </span>
                         <span className="text-xl text-[#e5a00d] font-bold">hours</span>
                     </div>
                     <div className="mt-4 text-gray-400">
-                        Across <span className="text-white font-bold">{summary.totalPlays.toLocaleString()}</span> plays
+                        Across <span className="text-white font-bold">{filteredSummary.totalPlays.toLocaleString()}</span> plays
                     </div>
                 </div>
              </div>
@@ -98,11 +169,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                 <div className="bg-[#121212] h-full w-full rounded-[20px] p-6 flex flex-col relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#e5a00d] opacity-10 blur-[50px] rounded-full"></div>
                     
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="bg-[#e5a00d] text-black p-2 rounded-lg">
-                            <Sparkles className="w-5 h-5" />
+                    <div className="flex items-center gap-2 mb-4 justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-[#e5a00d] text-black p-2 rounded-lg">
+                              <Sparkles className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">AI Analysis</h3>
+                            {apiKeyHint && <p className="text-[11px] text-gray-400">{apiKeyHint}</p>}
+                          </div>
                         </div>
-                        <h3 className="text-lg font-bold text-white">AI Analysis</h3>
+                        <button
+                          type="button"
+                          onClick={handleApiKeyUpdate}
+                          className="text-xs font-bold text-black bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors"
+                        >
+                          Set API Key
+                        </button>
                     </div>
 
                     <div className="flex-1 flex flex-col justify-center">
@@ -135,7 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                     <div className="bg-gray-800/50 p-2 rounded-lg"><Clock className="w-5 h-5 text-[#e5a00d]" /></div>
                     <h3 className="font-bold text-lg">Hourly Activity</h3>
                 </div>
-                <HourlyActivityChart summary={summary} />
+                <HourlyActivityChart summary={filteredSummary} />
             </div>
 
             {/* Chart: Media Mix */}
@@ -145,7 +228,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                     <h3 className="font-bold text-lg">Format Distribution</h3>
                 </div>
                 <div className="flex-1 min-h-0">
-                    <MediaTypePieChart summary={summary} />
+                    <MediaTypePieChart summary={filteredSummary} />
                 </div>
             </div>
 
@@ -155,7 +238,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                     <div className="bg-gray-800/50 p-2 rounded-lg"><Calendar className="w-5 h-5 text-[#e5a00d]" /></div>
                     <h3 className="font-bold text-lg">Monthly Trend</h3>
                 </div>
-                <MonthlyTrendChart summary={summary} />
+                <MonthlyTrendChart summary={filteredSummary} />
             </div>
 
             {/* Chart: Weekly Habits */}
@@ -164,14 +247,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                     <div className="bg-gray-800/50 p-2 rounded-lg"><Calendar className="w-5 h-5 text-[#e5a00d]" /></div>
                     <h3 className="font-bold text-lg">Weekly Habits</h3>
                 </div>
-                <WeeklyActivityChart summary={summary} />
+                <WeeklyActivityChart summary={filteredSummary} />
             </div>
           </div>
 
           {/* Top Lists - Miller's Law (Limit items displayed) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TopListCard title="Top Movies" items={summary.topMovies} icon={<Film className="w-5 h-5 text-blue-400"/>} />
-            <TopListCard title="Top Shows" items={summary.topShows} icon={<Tv className="w-5 h-5 text-green-400"/>} />
+            <TopListCard title="Top Movies" items={filteredSummary.topMovies} icon={<Film className="w-5 h-5 text-blue-400"/>} />
+            <TopListCard title="Top Shows" items={filteredSummary.topShows} icon={<Tv className="w-5 h-5 text-green-400"/>} />
           </div>
 
         </div>
