@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Globe, FileSpreadsheet, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Globe, FileSpreadsheet, RefreshCw, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
 import { PlayHistoryItem } from '../types';
 
@@ -8,12 +8,21 @@ interface PlexConnectProps {
 }
 
 export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
-  // Initialize state from Local Storage if available, otherwise default to empty string
-  const [url, setUrl] = useState(() => localStorage.getItem('plex_url') || '');
-  const [token, setToken] = useState(() => localStorage.getItem('plex_token') || '');
+  // Security Upgrade: Check environment variables first, then LocalStorage, then default to empty.
+  // This allows you to use .env files to hide credentials completely from the source code.
+  const [url, setUrl] = useState(() => {
+    return process.env.PLEX_SERVER_URL || localStorage.getItem('plex_url') || '';
+  });
+  
+  const [token, setToken] = useState(() => {
+    return process.env.PLEX_TOKEN || localStorage.getItem('plex_token') || '';
+  });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showToken, setShowToken] = useState(false);
+
+  const hasSavedCredentials = !!localStorage.getItem('plex_url') || !!localStorage.getItem('plex_token');
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,9 +31,9 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
       return;
     }
 
-    // Persist credentials to Local Storage for future visits
-    localStorage.setItem('plex_url', url);
-    localStorage.setItem('plex_token', token);
+    // Persist credentials to Local Storage for future visits (unless using Env vars)
+    if (!process.env.PLEX_SERVER_URL) localStorage.setItem('plex_url', url);
+    if (!process.env.PLEX_TOKEN) localStorage.setItem('plex_token', token);
 
     setLoading(true);
     setError(null);
@@ -43,20 +52,44 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
     }
   };
 
+  const handleClearCredentials = () => {
+    localStorage.removeItem('plex_url');
+    localStorage.removeItem('plex_token');
+    
+    // Only clear state if it's not being enforced by an environment variable
+    if (!process.env.PLEX_SERVER_URL) setUrl('');
+    if (!process.env.PLEX_TOKEN) setToken('');
+    
+    setError("Credentials cleared from browser storage.");
+    setTimeout(() => setError(null), 2000);
+  };
+
   const isNetworkError = error?.includes("Network Error") || error?.includes("Failed to fetch");
   const isMixedContent = isNetworkError && window.location.protocol === 'https:' && url.startsWith('http:');
 
   return (
     <div className="w-full max-w-xl mx-auto glass-card rounded-3xl p-1">
       <div className="bg-[#15171C] rounded-[22px] border border-white/5 p-8">
-        <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-[#e5a00d] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-                <Server className="w-6 h-6 text-black" />
+        <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#e5a00d] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                    <Server className="w-6 h-6 text-black" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-bold text-white">Connect Server</h3>
+                    <p className="text-gray-400 text-sm">Direct API connection</p>
+                </div>
             </div>
-            <div>
-                <h3 className="text-xl font-bold text-white">Connect Server</h3>
-                <p className="text-gray-400 text-sm">Direct API connection</p>
-            </div>
+            
+            {hasSavedCredentials && (
+                <button 
+                    onClick={handleClearCredentials}
+                    className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-all hover:bg-red-500/20"
+                    title="Clear credentials from browser storage"
+                >
+                    <Trash2 className="w-3 h-3" /> Forget
+                </button>
+            )}
         </div>
 
         <form onSubmit={handleConnect} className="space-y-6">
@@ -88,13 +121,21 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
             </div>
             <div className="relative group">
               <input
-                type="password"
+                type={showToken ? "text" : "password"}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="Your token here..."
-                className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-4 pl-11 text-white placeholder-gray-600 focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none transition-all font-mono text-sm"
+                className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-4 pl-11 pr-12 text-white placeholder-gray-600 focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none transition-all font-mono text-sm"
               />
               <Key className="w-4 h-4 text-gray-500 absolute left-4 top-4.5 group-focus-within:text-[#e5a00d] transition-colors" />
+              
+              <button
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                className="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors focus:outline-none"
+              >
+                {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
@@ -186,7 +227,9 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
               <div className="flex items-start gap-3 text-red-200 bg-red-900/20 border border-red-500/10 p-4 rounded-xl text-sm">
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold mb-1">Error</p>
+                  <p className="font-bold mb-1">
+                    {error === "Credentials cleared from browser storage." ? "Success" : "Error"}
+                  </p>
                   <p className="opacity-80">{error}</p>
                 </div>
               </div>
