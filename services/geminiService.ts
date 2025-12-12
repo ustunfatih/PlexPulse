@@ -26,12 +26,6 @@ const getSystemInstruction = () => `
   Keep it concise (under 250 words total). Use emojis.
 `;
 
-const getApiKey = () =>
-  import.meta.env.VITE_GEMINI_API_KEY ||
-  import.meta.env.GEMINI_API_KEY ||
-  process.env.VITE_GEMINI_API_KEY ||
-  process.env.GEMINI_API_KEY;
-
 // Helper to handle API calls with retry for auth/permission issues
 async function withRetry<T>(
   apiCall: () => Promise<T>
@@ -58,7 +52,7 @@ async function withRetry<T>(
       console.log("Auth/Permission Error detected. Prompting for new API Key...");
       await window.aistudio.openSelectKey();
       
-      // Retry with new key (AI Studio injects the selected key into the environment)
+      // Retry with new key (which is automatically injected into process.env.API_KEY)
       try {
         console.log("Retrying operation with new key...");
         return await apiCall();
@@ -82,8 +76,9 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
   }
 
   const performGeneration = async () => {
-    const apiKey = getApiKey();
-    if (!apiKey) throw new Error("API Key is missing. Set VITE_GEMINI_API_KEY or GEMINI_API_KEY.");
+    // CRITICAL: process.env.API_KEY must be read INSIDE this function
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing.");
 
     const ai = new GoogleGenAI({ apiKey });
     
@@ -105,7 +100,7 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
       }
     });
 
-    return response.response?.text || response.text || "Could not generate insights.";
+    return response.text || "Could not generate insights.";
   };
 
   try {
@@ -141,105 +136,65 @@ export const generateYearlyRecap = async (
 
   // Strategy 1: Flash Image (Primary - Most Stable/Permissive)
   const generateFlash = async () => {
-      const apiKey = getApiKey();
+      const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-image-generation',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }]
-          }
-        ],
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
         config: {
-            responseModalities: ['Image', 'Text'],
+            imageConfig: {
+                aspectRatio: '3:4'
+                // imageSize not supported on Flash
+            }
         }
       });
       return response;
   };
 
-  // Strategy 2: Imagen Model (Fallback - Dedicated image generation)
-  const generateImagen = async () => {
-      const apiKey = getApiKey();
+  // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
+  const generatePro = async () => {
+      const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key missing");
-
+      
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
-        prompt: prompt,
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-image-preview',
+        contents: { parts: [{ text: prompt }] },
         config: {
-          numberOfImages: 1,
-          aspectRatio: '3:4'
+          imageConfig: {
+            imageSize: '2K',
+            aspectRatio: '3:4'
+          }
         }
       });
       return response;
-  };
-
-  // Helper to extract image from Gemini response
-  const extractImageFromGeminiResponse = (response: any): string | null => {
-    // Try multiple response structures
-    const candidates =
-      response?.candidates ||
-      response?.response?.candidates ||
-      [];
-
-    for (const candidate of candidates) {
-      const parts = candidate?.content?.parts || [];
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          const mimeType = part.inlineData.mimeType || 'image/png';
-          return `data:${mimeType};base64,${part.inlineData.data}`;
-        }
-      }
-    }
-    return null;
-  };
-
-  // Helper to extract image from Imagen response
-  const extractImageFromImagenResponse = (response: any): string | null => {
-    const images = response?.generatedImages || response?.images || [];
-    if (images.length > 0) {
-      const img = images[0];
-      const data = img.image?.imageBytes || img.imageBytes || img.image?.bytesBase64Encoded;
-      if (data) {
-        return `data:image/png;base64,${data}`;
-      }
-    }
-    return null;
   };
 
   // --- Execution Flow ---
 
   try {
-    // Attempt 1: Gemini Flash Model (Best for stability and creativity)
-    console.log("Attempting image generation with Gemini Flash...");
+    // Attempt 1: Flash Model (Best for stability)
     const response = await withRetry(generateFlash);
-    const imageUrl = extractImageFromGeminiResponse(response);
-    if (imageUrl) {
-      console.log("Successfully generated image with Gemini Flash");
-      return imageUrl;
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
-    console.warn("Gemini Flash returned no image data");
   } catch (error) {
-    console.warn("Gemini Flash model failed, attempting fallback to Imagen...", error);
-  }
-
-  // Attempt 2: Imagen Model (Fallback - dedicated image generation)
-  try {
-    console.log("Attempting image generation with Imagen...");
-    const response = await withRetry(generateImagen);
-    const imageUrl = extractImageFromImagenResponse(response);
-    if (imageUrl) {
-      console.log("Successfully generated image with Imagen");
-      return imageUrl;
+    console.warn("Flash model failed, attempting fallback to Pro model...", error);
+    
+    // Attempt 2: Pro Model (Fallback)
+    try {
+        const response = await withRetry(generatePro);
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        }
+    } catch (finalError) {
+        console.error("All image generation attempts failed.", finalError);
+        // Throwing here allows the UI to catch it and display the error message
+        throw finalError;
     }
-    console.warn("Imagen returned no image data");
-  } catch (finalError) {
-    console.error("All image generation attempts failed.", finalError);
-    throw finalError;
   }
-
+  
   return null;
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Globe, FileSpreadsheet, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
 import { PlayHistoryItem } from '../types';
@@ -8,12 +8,12 @@ interface PlexConnectProps {
 }
 
 export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
-  const [url, setUrl] = useState('');
-  const [token, setToken] = useState('');
-
+  // Initialize state from Local Storage if available, otherwise default to empty string
+  const [url, setUrl] = useState(() => localStorage.getItem('plex_url') || '');
+  const [token, setToken] = useState(() => localStorage.getItem('plex_token') || '');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const proxyConfigured = Boolean(import.meta.env.VITE_PLEX_PROXY_URL);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +21,10 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
       setError("Please provide both Server URL and Token");
       return;
     }
+
+    // Persist credentials to Local Storage for future visits
+    localStorage.setItem('plex_url', url);
+    localStorage.setItem('plex_token', token);
 
     setLoading(true);
     setError(null);
@@ -53,18 +57,6 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
                 <h3 className="text-xl font-bold text-white">Connect Server</h3>
                 <p className="text-gray-400 text-sm">Direct API connection</p>
             </div>
-        </div>
-
-        <div className={`mb-6 text-xs border rounded-xl p-3 ${proxyConfigured ? 'border-green-500/30 bg-green-500/10 text-green-200' : 'border-white/10 bg-white/5 text-gray-300'}`}>
-          {proxyConfigured ? (
-            <p className="leading-relaxed">
-              Requests will be routed through your configured proxy to avoid browser CORS issues. Double-check the proxy URL stored in <code className="font-mono">VITE_PLEX_PROXY_URL</code> if you have trouble connecting.
-            </p>
-          ) : (
-            <p className="leading-relaxed">
-              Tip: Browsers often block direct Plex connections. Set <code className="font-mono">VITE_PLEX_PROXY_URL</code> to a backend that forwards requests to your server for a smoother experience.
-            </p>
-          )}
         </div>
 
         <form onSubmit={handleConnect} className="space-y-6">

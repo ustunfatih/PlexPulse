@@ -24,9 +24,18 @@ interface PlexResponse {
 export const fetchPlexHistory = async (serverUrl: string, token: string): Promise<PlayHistoryItem[]> => {
   // normalize URL (remove trailing slash)
   const cleanUrl = serverUrl.replace(/\/$/, '');
-  const proxyBase = import.meta.env.VITE_PLEX_PROXY_URL?.replace(/\/$/, '');
+  
+  // Construct the API URL
+  // Note: We request JSON, but many Plex servers/proxies will return XML anyway if they strip headers
+  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
 
-  const parseHistory = async (response: Response): Promise<PlexMetadata[]> => {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
     if (!response.ok) {
       if (response.status === 401) throw new Error("Invalid Plex Token.");
       if (response.status === 404) throw new Error("Server not found. Check URL.");
@@ -38,56 +47,24 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
     // Attempt to parse as JSON first
     try {
-      const jsonData: PlexResponse = JSON.parse(text);
-      if (jsonData.MediaContainer?.Metadata) {
-        data = jsonData.MediaContainer.Metadata;
-      }
-    } catch (e) {
-      // JSON parsing failed, likely XML response.
-      if (text.trim().startsWith('<')) {
-        data = parsePlexXML(text);
-      } else {
-        throw new Error("Invalid response format from server.");
-      }
-    }
-
-    return data;
-  };
-
-  try {
-    let rawHistory: PlexMetadata[] = [];
-
-    if (proxyBase) {
-      const response = await fetch(`${proxyBase}/history`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          serverUrl: cleanUrl,
-          token,
-          limit: 5000
-        })
-      });
-
-      rawHistory = await parseHistory(response);
-    } else {
-      const directUrl = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
-      const response = await fetch(directUrl, {
-        headers: {
-          'Accept': 'application/json'
+        const jsonData: PlexResponse = JSON.parse(text);
+        if (jsonData.MediaContainer?.Metadata) {
+            data = jsonData.MediaContainer.Metadata;
         }
-      });
-
-      rawHistory = await parseHistory(response);
+    } catch (e) {
+        // JSON parsing failed, likely XML response.
+        if (text.trim().startsWith('<')) {
+            data = parsePlexXML(text);
+        } else {
+            throw new Error("Invalid response format from server.");
+        }
     }
-
-    if (rawHistory.length === 0) {
+    
+    if (data.length === 0) {
       return [];
     }
 
-    return rawHistory.map((item) => {
+    return data.map((item) => {
         // Map Plex types to our types
         let type: 'movie' | 'episode' | 'track' | 'unknown' = 'unknown';
         if (item.type === 'movie') type = 'movie';
@@ -96,7 +73,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         // Calculate duration safely
         let durationMs = item.duration;
-
+        
         // FALLBACK: If duration is missing or 0 (common in some Plex history logs),
         // estimate based on type to prevent "NaN" or "0 hours" reports.
         if (!durationMs || durationMs === 0) {
@@ -117,7 +94,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
             grandparentTitle: item.grandparentTitle,
             parentTitle: item.parentTitle,
             // viewedAt is unix timestamp in seconds
-            date: new Date(item.viewedAt * 1000),
+            date: new Date(item.viewedAt * 1000), 
             durationMinutes: isNaN(durationMinutes) ? 0 : durationMinutes,
             type: type,
             user: userName
@@ -126,10 +103,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
   } catch (error: any) {
     if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-      const proxyHint = proxyBase
-        ? 'Please verify your proxy URL is reachable.'
-        : 'Browsers often block direct Plex calls; consider configuring VITE_PLEX_PROXY_URL to route through a backend.';
-      throw new Error(`Network Error: The request was blocked. ${proxyHint}`);
+      throw new Error("Network Error: Your browser blocked the request. This is common with direct Plex connections due to CORS. Please allow Mixed Content or use the CSV upload method if this persists.");
     }
     throw error;
   }

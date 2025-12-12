@@ -198,7 +198,7 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
       prevTime = time;
     });
 
-    const busiest = [...monthlyBreakdown].sort((a,b) => b.totalHours - a.totalHours)[0];
+    const busiest = monthlyBreakdown.sort((a,b) => b.totalHours - a.totalHours)[0];
     const totalYearMinutes = items.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
     const finalYearHours = Math.round(totalYearMinutes / 60);
 
