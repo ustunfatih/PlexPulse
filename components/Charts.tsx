@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, AreaChart, Area, CartesianGrid
@@ -165,61 +165,208 @@ export const MonthlyTrendChart: React.FC<{ summary: AnalyticsSummary }> = ({ sum
   );
 };
 
-export const ActivityHeatmap: React.FC<{ data: HeatmapPoint[], mode: 'weekly' | 'monthly' }> = ({ data, mode }) => {
-  const [hoveredCell, setHoveredCell] = useState<{ x: number, y: number, value: number, label: string } | null>(null);
-  
-  // Calculate max value for normalization
-  const maxVal = Math.max(...data.map(d => d.value), 1);
+// --- Heatmap Implementation ---
 
-  // GitHub-style color scale function
+interface ActivityHeatmapProps {
+  data: any[]; 
+  mode: 'weekly' | 'monthly' | 'yearly';
+  year?: number; // Required for yearly mode
+}
+
+export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, mode, year }) => {
+  const [hoveredCell, setHoveredCell] = useState<{ x: number, y: number, value: number, label: string } | null>(null);
+
+  // --- Calculations for Yearly View ---
+  const { yearlyCells, monthLabels } = useMemo(() => {
+    if (mode !== 'yearly' || !year) return { yearlyCells: [], monthLabels: [] };
+
+    // Map daily data to a quick lookup
+    const dailyMap = new Map<string, number>();
+    data.forEach(d => dailyMap.set(d.date, d.count));
+
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+    const cells = [];
+    const months = [];
+    
+    // Determine offset for the first week (Sunday based)
+    const startDay = startDate.getDay(); // 0 = Sun
+    
+    // Fill empty spots before Jan 1
+    for (let i = 0; i < startDay; i++) {
+        cells.push({ date: null, value: 0, label: '' });
+    }
+
+    // Fill days
+    let currentDate = new Date(startDate);
+    let lastMonth = -1;
+    let weekIndex = 0; // rough week index for labeling placement
+
+    while (currentDate <= endDate) {
+        const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+        const val = dailyMap.get(dateStr) || 0;
+        
+        // Month Labels
+        if (currentDate.getMonth() !== lastMonth) {
+            // Calculate column index for label
+            const dayIndex = cells.length;
+            const colIndex = Math.floor(dayIndex / 7);
+            months.push({ name: currentDate.toLocaleString('default', { month: 'short' }), col: colIndex });
+            lastMonth = currentDate.getMonth();
+        }
+
+        cells.push({
+            date: dateStr,
+            value: val,
+            label: currentDate.toDateString()
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return { yearlyCells: cells, monthLabels: months };
+
+  }, [mode, year, data]);
+
+
+  // Calculate max value for coloring (universal)
+  const maxVal = useMemo(() => {
+    if (mode === 'yearly') return Math.max(...data.map(d => d.count), 1);
+    return Math.max(...data.map(d => d.value), 1);
+  }, [data, mode]);
+
   const getCellColor = (value: number) => {
-    if (value === 0) return 'bg-[#27272a]'; // Empty (Zinc-800 equivalent)
+    if (value === 0) return 'bg-[#27272a]';
     const ratio = value / maxVal;
-    if (ratio <= 0.25) return 'bg-[#4a3a18]'; // Darkest Orange
-    if (ratio <= 0.50) return 'bg-[#7c5d10]'; // Medium-Dark
-    if (ratio <= 0.75) return 'bg-[#b8860b]'; // Medium-Light
-    return 'bg-[#e5a00d]'; // Full Plex Orange
+    if (ratio <= 0.25) return 'bg-[#4a3a18]';
+    if (ratio <= 0.50) return 'bg-[#7c5d10]';
+    if (ratio <= 0.75) return 'bg-[#b8860b]';
+    return 'bg-[#e5a00d]';
   };
 
   const getCellOpacity = (value: number) => {
-      // Add slight opacity variation for "glow" feel in dark mode, but keep solid colors for distinct blocks
       if (value === 0) return 'opacity-40';
       return 'opacity-100';
   };
 
-  // Dimensions
-  // Weekly: X=Hour (24), Y=Day (7)
-  // Monthly: X=Day (31), Y=Hour (24)
-  const cols = mode === 'weekly' ? 24 : 31; // Max days in month is 31
-  const rows = mode === 'weekly' ? 7 : 24;
+  // --- Render for Weekly/Monthly ---
+  if (mode !== 'yearly') {
+    // Dimensions: Weekly (24x7), Monthly (31x24)
+    const cols = mode === 'weekly' ? 24 : 31;
+    const rows = mode === 'weekly' ? 7 : 24;
 
-  const weekLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const hourLabels = ['12a', '4a', '8a', '12p', '4p', '8p'];
-  
-  // Helper to get value at specific coord
-  const getValue = (x: number, y: number) => {
-      // In Weekly: x=Hour, y=Day
-      // In Monthly: x=Day(1-31), y=Hour
-      if (mode === 'weekly') {
-          const pt = data.find(d => d.hour === x && d.day === y);
-          return pt ? pt.value : 0;
-      } else {
-          // Monthly data: day is 1-based index usually
-          const pt = data.find(d => d.day === (x + 1) && d.hour === y);
-          return pt ? pt.value : 0;
-      }
-  };
+    const weekLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const hourLabels = ['12a', '4a', '8a', '12p', '4p', '8p'];
+    
+    const getValue = (x: number, y: number) => {
+        if (mode === 'weekly') {
+            const pt = data.find(d => d.hour === x && d.day === y);
+            return pt ? pt.value : 0;
+        } else {
+            const pt = data.find(d => d.day === (x + 1) && d.hour === y);
+            return pt ? pt.value : 0;
+        }
+    };
 
+    return (
+        <div className="w-full h-full flex flex-col relative" onMouseLeave={() => setHoveredCell(null)}>
+            {/* Tooltip */}
+            {hoveredCell && (
+                <div 
+                    className="absolute z-50 pointer-events-none transition-all duration-75"
+                    style={{ 
+                        left: `${(hoveredCell.x / cols) * 100}%`, 
+                        top: `${(hoveredCell.y / rows) * 100}%`,
+                        transform: 'translate(-50%, -130%)'
+                    }}
+                >
+                    <div className="bg-gray-900 border border-white/10 text-white text-xs px-2 py-1 rounded-md shadow-xl whitespace-nowrap">
+                    <div className="font-bold text-[#e5a00d] mb-0.5">{hoveredCell.value} plays</div>
+                    <div className="text-gray-400 text-[10px]">{hoveredCell.label}</div>
+                    </div>
+                    <div className="w-2 h-2 bg-gray-900 border-r border-b border-white/10 transform rotate-45 absolute left-1/2 -bottom-1 -translate-x-1/2"></div>
+                </div>
+            )}
+
+            {/* X Axis */}
+            <div className="flex mb-2 pl-8">
+                {mode === 'weekly' ? (
+                    hourLabels.map((label, i) => (
+                        <div key={i} className="flex-1 text-[10px] text-gray-500 font-mono text-left" style={{ flexGrow: 4 }}>{label}</div>
+                    ))
+                ) : (
+                    Array.from({ length: 7 }).map((_, i) => (
+                        <div key={i} className="flex-1 text-[10px] text-gray-500 font-mono text-left" style={{ flexGrow: 5 }}>{i * 5 + 1}</div>
+                    ))
+                )}
+            </div>
+
+            <div className="flex flex-1 min-h-0">
+                {/* Y Axis */}
+                <div className="flex flex-col justify-between pr-3 py-1">
+                    {mode === 'weekly' ? (
+                        weekLabels.map(d => (
+                            <div key={d} className="text-[10px] text-gray-500 font-bold h-full flex items-center">{d}</div>
+                        ))
+                    ) : (
+                        ['12am', '6am', '12pm', '6pm'].map(h => (
+                            <div key={h} className="text-[10px] text-gray-500 font-bold h-full flex items-center">{h}</div>
+                        ))
+                    )}
+                </div>
+                
+                {/* Grid */}
+                <div 
+                    className="flex-1 grid gap-[2px] sm:gap-1"
+                    style={{ 
+                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`
+                    }}
+                >
+                    {Array.from({ length: rows }).map((_, rowIdx) => (
+                        Array.from({ length: cols }).map((_, colIdx) => {
+                            const val = getValue(colIdx, rowIdx);
+                            const label = mode === 'weekly' 
+                                ? `${weekLabels[rowIdx]} @ ${colIdx}:00`
+                                : `Day ${colIdx + 1} @ ${rowIdx}:00`;
+                            return (
+                                <div 
+                                    key={`${rowIdx}-${colIdx}`}
+                                    onMouseEnter={() => setHoveredCell({ x: colIdx, y: rowIdx, value: val, label })}
+                                    className={`rounded-sm transition-all duration-200 hover:scale-125 hover:z-10 hover:border hover:border-white/50 ${getCellColor(val)} ${getCellOpacity(val)}`}
+                                />
+                            );
+                        })
+                    ))}
+                </div>
+            </div>
+            {/* Legend */}
+            <div className="flex justify-end items-center gap-2 mt-4 text-[10px] text-gray-500">
+                <span>Less</span>
+                <div className="flex gap-1">
+                    <div className={`w-3 h-3 rounded-sm ${getCellColor(0)}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${getCellColor(maxVal * 0.2)}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${getCellColor(maxVal * 0.4)}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${getCellColor(maxVal * 0.7)}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${getCellColor(maxVal)}`}></div>
+                </div>
+                <span>More</span>
+            </div>
+        </div>
+    );
+  }
+
+  // --- Render for Yearly ---
+  // GitHub Style: 7 Rows (Sun-Sat), Columns flow automatically via CSS Grid flow-col
   return (
     <div className="w-full h-full flex flex-col relative" onMouseLeave={() => setHoveredCell(null)}>
-        
-        {/* Hover Tooltip - Absolute positioned relative to container */}
-        {hoveredCell && (
+         {/* Tooltip */}
+         {hoveredCell && (
             <div 
                 className="absolute z-50 pointer-events-none transition-all duration-75"
                 style={{ 
-                    left: `${(hoveredCell.x / cols) * 100}%`, 
-                    top: `${(hoveredCell.y / rows) * 100}%`,
+                    // Calculate rough position based on grid index
+                    left: `calc(${(Math.floor(hoveredCell.x / 7) / 53) * 100}%)`,
+                    top: `${((hoveredCell.x % 7) / 7) * 100}%`,
                     transform: 'translate(-50%, -130%)'
                 }}
             >
@@ -227,68 +374,39 @@ export const ActivityHeatmap: React.FC<{ data: HeatmapPoint[], mode: 'weekly' | 
                    <div className="font-bold text-[#e5a00d] mb-0.5">{hoveredCell.value} plays</div>
                    <div className="text-gray-400 text-[10px]">{hoveredCell.label}</div>
                 </div>
-                {/* Arrow */}
-                <div className="w-2 h-2 bg-gray-900 border-r border-b border-white/10 transform rotate-45 absolute left-1/2 -bottom-1 -translate-x-1/2"></div>
             </div>
         )}
 
-        {/* Labels Top (X-Axis) */}
-        <div className="flex mb-2 pl-8">
-            {mode === 'weekly' ? (
-                // Hourly Labels
-                hourLabels.map((label, i) => (
-                    <div key={i} className="flex-1 text-[10px] text-gray-500 font-mono text-left" style={{ flexGrow: 4 }}>{label}</div>
-                ))
-            ) : (
-                // Daily Labels (every 5 days)
-                Array.from({ length: 7 }).map((_, i) => (
-                     <div key={i} className="flex-1 text-[10px] text-gray-500 font-mono text-left" style={{ flexGrow: 5 }}>{i * 5 + 1}</div>
-                ))
-            )}
+        <div className="flex mb-2 pl-8 relative h-4">
+             {/* Approximate month labels */}
+             {monthLabels.map((m, i) => (
+                 <div key={i} className="absolute text-[10px] text-gray-500 font-mono" style={{ left: `${(m.col / 53) * 100}%` }}>
+                     {m.name}
+                 </div>
+             ))}
         </div>
 
         <div className="flex flex-1 min-h-0">
-             {/* Labels Left (Y-Axis) */}
-             <div className="flex flex-col justify-between pr-3 py-1">
-                {mode === 'weekly' ? (
-                    weekLabels.map(d => (
-                        <div key={d} className="text-[10px] text-gray-500 font-bold h-full flex items-center">{d}</div>
-                    ))
-                ) : (
-                    ['12am', '6am', '12pm', '6pm'].map(h => (
-                        <div key={h} className="text-[10px] text-gray-500 font-bold h-full flex items-center">{h}</div>
-                    ))
-                )}
+             <div className="flex flex-col justify-between pr-3 py-1 h-full">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                     // Only show Mon, Wed, Fri like GitHub
+                     <div key={d} className="text-[10px] text-gray-500 font-bold h-full flex items-center opacity-0 sm:opacity-100">
+                         { (i === 1 || i === 3 || i === 5) ? d : '' }
+                     </div>
+                ))}
              </div>
-             
-             {/* The Grid */}
-             <div 
-                className="flex-1 grid gap-[2px] sm:gap-1"
-                style={{ 
-                    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`
-                }}
-             >
-                {Array.from({ length: rows }).map((_, rowIdx) => (
-                    Array.from({ length: cols }).map((_, colIdx) => {
-                        const val = getValue(colIdx, rowIdx);
-                        const label = mode === 'weekly' 
-                            ? `${weekLabels[rowIdx]} @ ${colIdx}:00`
-                            : `Day ${colIdx + 1} @ ${rowIdx}:00`;
 
-                        return (
-                            <div 
-                                key={`${rowIdx}-${colIdx}`}
-                                onMouseEnter={() => setHoveredCell({ x: colIdx, y: rowIdx, value: val, label })}
-                                className={`rounded-sm transition-all duration-200 hover:scale-125 hover:z-10 hover:border hover:border-white/50 ${getCellColor(val)} ${getCellOpacity(val)}`}
-                            />
-                        );
-                    })
+             <div className="flex-1 grid gap-[2px] sm:gap-1 grid-rows-7 grid-flow-col overflow-hidden">
+                {yearlyCells.map((cell, idx) => (
+                    <div 
+                        key={idx}
+                        onMouseEnter={() => cell.date && setHoveredCell({ x: idx, y: 0, value: cell.value, label: cell.label })}
+                        className={`rounded-sm transition-all duration-200 hover:scale-125 hover:z-10 hover:border hover:border-white/50 ${cell.date ? getCellColor(cell.value) : 'bg-transparent'} ${cell.date ? getCellOpacity(cell.value) : ''}`}
+                    />
                 ))}
              </div>
         </div>
 
-        {/* Legend */}
         <div className="flex justify-end items-center gap-2 mt-4 text-[10px] text-gray-500">
             <span>Less</span>
             <div className="flex gap-1">

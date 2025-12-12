@@ -106,9 +106,16 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
     
     // Heatmap (Yearly/Weekly aggregation)
     const heatmapGrid: Record<string, number> = {};
+    const dailyCounts: Record<string, number> = {};
+
     items.forEach(item => {
+      // For Weekly Heatmap
       const key = `${item.date.getDay()}-${item.date.getHours()}`;
       heatmapGrid[key] = (heatmapGrid[key] || 0) + 1;
+
+      // For Yearly Heatmap
+      const dateKey = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}-${String(item.date.getDate()).padStart(2, '0')}`;
+      dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
     });
     
     const heatmapData: HeatmapPoint[] = [];
@@ -121,6 +128,8 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
         });
       }
     }
+
+    const dailyActivity = Object.entries(dailyCounts).map(([date, count]) => ({ date, count }));
 
     // Monthly Breakdown
     const months: Record<string, PlayHistoryItem[]> = {};
@@ -201,7 +210,8 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
       longestStreak: maxStreak,
       busiestMonth: busiest ? busiest.monthName : 'N/A',
       monthlyBreakdown,
-      heatmapData
+      heatmapData,
+      dailyActivity
     });
   });
 

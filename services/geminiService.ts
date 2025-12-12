@@ -27,8 +27,14 @@ const getSystemInstruction = () => `
 `;
 
 export const generateInsight = async (summary: AnalyticsSummary): Promise<string> => {
+  // Check apiKey availability, but allow empty to try anyway if environment is set up strictly
   if (!process.env.API_KEY) {
-    return "Please provide a valid API Key to unlock insights.";
+     // If no key in env, try to prompt user if possible, otherwise error
+     if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+     } else {
+        return "Please provide a valid API Key to unlock insights.";
+     }
   }
 
   try {
@@ -67,6 +73,7 @@ export const generateYearlyRecap = async (
 ): Promise<string | null> => {
   
   // 1. Ensure user has selected a paid key for the Pro model
+  // This is the initial check
   if (window.aistudio) {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
@@ -74,43 +81,68 @@ export const generateYearlyRecap = async (
     }
   }
 
-  // 2. Initialize with the environment key
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Helper to create the request
+  const makeRequest = async () => {
+      // Always create a new instance to grab the latest process.env.API_KEY
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      // We take the top unique titles (limit to 12 max to avoid token overload/messy image)
+      const uniqueTitles = Array.from(new Set(titles)).slice(0, 12);
+      
+      const prompt = `Create a spectacular, cinematic movie poster titled '${year} IN REVIEW'.
+      The poster should be an artistic collage featuring elements, characters, or vibes from the following ${mediaTypeLabel}:
+      ${uniqueTitles.join(', ')}.
+      
+      Style: High-end digital art, vibrant colors, cohesive composition like a blockbuster crossover poster.
+      The text '${year}' should be prominent and stylized.`;
 
-  // 3. Construct a creative prompt for a collage/infographic
-  // We take the top unique titles (limit to 12 max to avoid token overload/messy image)
-  const uniqueTitles = Array.from(new Set(titles)).slice(0, 12);
-  
-  const prompt = `Create a spectacular, cinematic movie poster titled '${year} IN REVIEW'.
-  The poster should be an artistic collage featuring elements, characters, or vibes from the following ${mediaTypeLabel}:
-  ${uniqueTitles.join(', ')}.
-  
-  Style: High-end digital art, vibrant colors, cohesive composition like a blockbuster crossover poster.
-  The text '${year}' should be prominent and stylized.`;
+      return await ai.models.generateContent({
+        model: 'gemini-3-pro-image-preview',
+        contents: { 
+          parts: [{ text: prompt }] 
+        },
+        config: {
+          imageConfig: {
+            imageSize: '2K',
+            aspectRatio: '3:4'
+          }
+        }
+      });
+  };
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: { 
-        parts: [{ text: prompt }] 
-      },
-      config: {
-        imageConfig: {
-          imageSize: '2K',
-          aspectRatio: '3:4'
-        }
-      }
-    });
-
-    // 4. Extract image
+    const response = await makeRequest();
+    
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Image Generation Error:", error);
-    throw error;
+    
+    // RETRY LOGIC for 403 Permission Denied
+    // This happens if the current key is free tier or invalid for this model.
+    // We force the key selection dialog open.
+    if (window.aistudio && (error.status === 403 || error.message?.includes('permission') || error.message?.includes('PERMISSION_DENIED'))) {
+        console.log("Permission denied. Requesting valid API Key...");
+        await window.aistudio.openSelectKey();
+        
+        // Retry once with the new key (assuming user selected one)
+        try {
+             const response = await makeRequest();
+             for (const part of response.candidates?.[0]?.content?.parts || []) {
+                if (part.inlineData) {
+                    return `data:image/png;base64,${part.inlineData.data}`;
+                }
+            }
+        } catch (retryError) {
+             console.error("Retry failed:", retryError);
+             throw retryError;
+        }
+    } else {
+        throw error;
+    }
   }
   return null;
 };

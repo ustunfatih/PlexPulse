@@ -62,4 +62,5 @@ export interface YearlyReport {
   busiestMonth: string;
   monthlyBreakdown: MonthlyReport[];
   heatmapData: HeatmapPoint[];
+  dailyActivity: { date: string; count: number }[];
 }

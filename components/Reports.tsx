@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
 import { ActivityHeatmap } from './Charts';
-import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film } from 'lucide-react';
+import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays } from 'lucide-react';
 import { generateYearlyRecap } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
 
@@ -16,7 +16,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const [yearIndex, setYearIndex] = useState(0);
   
   // Heatmap State
-  const [heatmapMode, setHeatmapMode] = useState<'weekly' | 'monthly'>('weekly');
+  const [heatmapMode, setHeatmapMode] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
   const [selectedHeatmapMonth, setSelectedHeatmapMonth] = useState<number>(0); 
 
   // Poster State
@@ -84,8 +84,11 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     if (!currentReport) return [];
     if (heatmapMode === 'weekly') {
       return currentReport.heatmapData;
-    } else {
+    } else if (heatmapMode === 'monthly') {
       return generateMonthlyHeatmap(filteredData, currentReport.year, selectedHeatmapMonth);
+    } else {
+      // For yearly, we pass the daily activity array which Charts.tsx handles
+      return currentReport.dailyActivity;
     }
   }, [currentReport, heatmapMode, selectedHeatmapMonth, filteredData]);
 
@@ -229,22 +232,30 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                 <p className="text-gray-400 mt-1">
                 {heatmapMode === 'weekly' 
                     ? "Your typical weekly schedule."
+                    : heatmapMode === 'yearly' 
+                    ? `Viewing consistency throughout ${currentReport.year}.`
                     : `Daily breakdown for ${monthNames[selectedHeatmapMonth] || 'Selected Month'}.`}
                 </p>
             </div>
 
-            <div className="flex items-center gap-3 bg-[#1C1C1E] p-1.5 rounded-xl border border-white/5 self-start md:self-auto">
+            <div className="flex items-center gap-3 bg-[#1C1C1E] p-1.5 rounded-xl border border-white/5 self-start md:self-auto overflow-x-auto max-w-full">
                 <button 
                     onClick={() => setHeatmapMode('weekly')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${heatmapMode === 'weekly' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${heatmapMode === 'weekly' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
                 >
                     <LayoutGrid className="w-4 h-4" /> Weekly
                 </button>
                 <button 
                     onClick={() => setHeatmapMode('monthly')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${heatmapMode === 'monthly' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${heatmapMode === 'monthly' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
                 >
                     <Grid className="w-4 h-4" /> Monthly
+                </button>
+                <button 
+                    onClick={() => setHeatmapMode('yearly')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${heatmapMode === 'yearly' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <CalendarDays className="w-4 h-4" /> Yearly
                 </button>
                 
                 {heatmapMode === 'monthly' && (
@@ -266,7 +277,11 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
             </div>
 
             <div className="flex-1 w-full min-h-[350px]">
-                <ActivityHeatmap data={heatmapData} mode={heatmapMode} />
+                <ActivityHeatmap 
+                    data={heatmapData} 
+                    mode={heatmapMode} 
+                    year={currentReport.year} 
+                />
             </div>
         </div>
       </div>
