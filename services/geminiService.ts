@@ -38,7 +38,7 @@ async function withRetry<T>(
       console.log("Auth/Permission Error detected. Prompting for new API Key...");
       await window.aistudio.openSelectKey();
       
-      // Retry with new key (which is automatically injected into process.env.API_KEY)
+      // Retry with new key (which is automatically injected into process.env.GEMINI_API_KEY)
       try {
         console.log("Retrying operation with new key...");
         return await apiCall();
@@ -77,7 +77,7 @@ export const generateYearlyRecap = async (
 
   // Strategy 1: Flash Image (Primary - Most Stable/Permissive)
   const generateFlash = async () => {
-      const apiKey = process.env.API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
@@ -96,7 +96,7 @@ export const generateYearlyRecap = async (
 
   // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
   const generatePro = async () => {
-      const apiKey = process.env.API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing");
       
       const ai = new GoogleGenAI({ apiKey });

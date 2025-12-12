@@ -38,7 +38,7 @@ export interface ChartDataPoint {
 // --- New Reporting Types ---
 
 export interface HeatmapPoint {
-  day: number; // 0-6 (Sun-Sat)
+  day: number; // Weekly mode: 0-6 (Sun-Sat), Monthly mode: 1-31 (day of month)
   hour: number; // 0-23
   value: number; // intensity/count
 }

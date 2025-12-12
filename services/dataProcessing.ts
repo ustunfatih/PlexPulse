@@ -208,56 +208,29 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
     let currentStreak = 0;
     let prevTime = 0;
     const oneDay = 24 * 60 * 60 * 1000;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:202',message:'Streak calculation started',data:{uniqueDaysCount:uniqueDays.length,oneDayMs:oneDay,toleranceMs:oneDay + 10000000},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    // Small tolerance for timezone/daylight saving adjustments (1 hour)
+    const tolerance = 60 * 60 * 1000;
 
     uniqueDays.forEach((time, index) => {
       if (index === 0) {
         currentStreak = 1;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:213',message:'First day in streak',data:{index,time,date:new Date(time).toDateString(),currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
       } else {
         const timeDiff = time - prevTime;
-        const diffDays = Math.round(timeDiff / oneDay);
-        const toleranceCheck = timeDiff <= oneDay + 10000000;
+        // Calculate difference in days with small tolerance for edge cases
+        const diffDays = Math.round((timeDiff - tolerance) / oneDay);
         
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:216',message:'Streak calculation step',data:{index,time,prevTime,timeDiff,oneDayMs:oneDay,toleranceMs:oneDay + 10000000,toleranceCheck,diffDays,currentStreakBefore:currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-        // #endregion
-        
-        if (toleranceCheck) { 
-           if (diffDays === 1) {
-             currentStreak++;
-             // #region agent log
-             fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:220',message:'Streak continued',data:{diffDays,currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-             // #endregion
-           } else if (diffDays > 1) {
-             currentStreak = 1;
-             // #region agent log
-             fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:223',message:'Streak reset - gap too large',data:{diffDays,currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-             // #endregion
-           } else if (diffDays === 0) {
-             // #region agent log
-             fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:226',message:'Same day detected',data:{diffDays,currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-             // #endregion
-           }
-        } else {
+        if (diffDays === 1) {
+          // Consecutive day - continue streak
+          currentStreak++;
+        } else if (diffDays > 1 || diffDays < 0) {
+          // Gap of more than 1 day, or negative (shouldn't happen but safety check)
           currentStreak = 1;
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:230',message:'Streak reset - tolerance exceeded',data:{timeDiff,toleranceMs:oneDay + 10000000,currentStreak},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
         }
+        // diffDays === 0 means same day (shouldn't happen due to uniqueDays, but if it does, keep streak)
       }
       if (currentStreak > maxStreak) maxStreak = currentStreak;
       prevTime = time;
     });
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2d145f2d-822c-4708-b288-ac5ec169284e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataProcessing.ts:236',message:'Streak calculation completed',data:{maxStreak,uniqueDaysCount:uniqueDays.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     const totalYearMinutes = items.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
     const finalYearHours = Math.round(totalYearMinutes / 60);
