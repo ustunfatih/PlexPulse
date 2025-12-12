@@ -26,29 +26,11 @@ const getSystemInstruction = () => `
   Keep it concise (under 250 words total). Use emojis.
 `;
 
-const getLocalApiKey = () => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('geminiApiKey');
-    }
-  } catch (error) {
-    console.warn('Unable to read local Gemini key', error);
-  }
-  return null;
-};
-
-const getApiKey = (): string | null => {
-  const local = getLocalApiKey();
-  if (local) return local;
-
-  // Vite only exposes env vars prefixed with VITE_, but we also map plain GEMINI_API_KEY in vite.config.ts
-  const envKey =
-    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-    (import.meta.env.GEMINI_API_KEY as string | undefined) ||
-    null;
-
-  return envKey || null;
-};
+const getApiKey = () =>
+  import.meta.env.VITE_GEMINI_API_KEY ||
+  import.meta.env.GEMINI_API_KEY ||
+  process.env.VITE_GEMINI_API_KEY ||
+  process.env.GEMINI_API_KEY;
 
 // Helper to handle API calls with retry for auth/permission issues
 async function withRetry<T>(
