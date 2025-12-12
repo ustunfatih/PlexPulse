@@ -26,13 +26,17 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   const cleanUrl = serverUrl.replace(/\/$/, '');
   
   // Construct the API URL
-  // We remove 'Accept: application/json' to avoid triggering a CORS Preflight (OPTIONS) request.
-  // This increases the success rate for direct server connections.
+  // We use standard JSON request headers. 
   const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
 
   try {
-    // Simple GET request without custom headers
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json'
+        },
+        mode: 'cors'
+    });
 
     if (!response.ok) {
       if (response.status === 401) throw new Error("Invalid Plex Token.");
@@ -43,17 +47,18 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     const text = await response.text();
     let data: PlexMetadata[] = [];
 
-    // Attempt to parse as JSON first (though Plex defaults to XML without the header)
+    // Attempt to parse as JSON first
     try {
         const jsonData: PlexResponse = JSON.parse(text);
         if (jsonData.MediaContainer?.Metadata) {
             data = jsonData.MediaContainer.Metadata;
         }
     } catch (e) {
-        // JSON parsing failed, likely XML response.
+        // If JSON parsing fails, fallback to XML parsing logic just in case the server ignored the Accept header
         if (text.trim().startsWith('<')) {
             data = parsePlexXML(text);
         } else {
+            // It wasn't JSON and it wasn't XML
             throw new Error("Invalid response format from server.");
         }
     }
@@ -84,7 +89,6 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
         const durationMinutes = Math.round(durationMs / 60000);
 
         // Map User safely (Check User object, then Account object, then default)
-        // Many Plex servers don't return User object for the admin/owner.
         const userName = item.User?.title || item.Account?.title || 'Server Owner';
 
         return {
@@ -100,8 +104,9 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     });
 
   } catch (error: any) {
+    // Specifically identify CORS/Network errors to update UI accordingly
     if (error.name === 'TypeError' && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
-      throw new Error("Network Error: Your browser blocked the request. This is likely a CORS issue common with web-based Plex tools. Please try the CSV Upload method instead.");
+      throw new Error("CORS_BLOCK");
     }
     throw error;
   }
@@ -129,7 +134,7 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
                 type: node.getAttribute('type') || 'unknown',
                 viewedAt: viewedAt,
                 duration: parseInt(node.getAttribute('duration') || '0'),
-                User: { title: node.getAttribute('user') || '' }, // sometimes user is an attr, sometimes nested
+                User: { title: node.getAttribute('user') || '' },
                 Account: { title: node.getAttribute('accountID') || 'User' } 
             });
         }

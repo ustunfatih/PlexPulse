@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { PlayHistoryItem, AnalyticsSummary } from './types';
 import { processHistoryData, generateMockData } from './services/dataProcessing';
@@ -92,7 +93,10 @@ const App: React.FC = () => {
                {inputMethod === 'file' ? (
                  <FileUpload onDataLoaded={setData} />
                ) : (
-                 <PlexConnect onDataLoaded={setData} />
+                 <PlexConnect 
+                    onDataLoaded={setData} 
+                    onSwitchToCSV={() => setInputMethod('file')} 
+                 />
                )}
              </div>
 

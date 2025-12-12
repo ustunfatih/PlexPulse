@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Globe, FileSpreadsheet, RefreshCw, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
@@ -5,11 +6,11 @@ import { PlayHistoryItem } from '../types';
 
 interface PlexConnectProps {
   onDataLoaded: (data: PlayHistoryItem[]) => void;
+  onSwitchToCSV: () => void;
 }
 
-export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
+export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitchToCSV }) => {
   // Security Upgrade: Check environment variables first, then LocalStorage, then default to empty.
-  // This allows you to use .env files to hide credentials completely from the source code.
   const [url, setUrl] = useState(() => {
     return process.env.PLEX_SERVER_URL || localStorage.getItem('plex_url') || '';
   });
@@ -31,7 +32,7 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
       return;
     }
 
-    // Persist credentials to Local Storage for future visits (unless using Env vars)
+    // Persist credentials to Local Storage
     if (!process.env.PLEX_SERVER_URL) localStorage.setItem('plex_url', url);
     if (!process.env.PLEX_TOKEN) localStorage.setItem('plex_token', token);
 
@@ -56,7 +57,6 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
     localStorage.removeItem('plex_url');
     localStorage.removeItem('plex_token');
     
-    // Only clear state if it's not being enforced by an environment variable
     if (!process.env.PLEX_SERVER_URL) setUrl('');
     if (!process.env.PLEX_TOKEN) setToken('');
     
@@ -64,8 +64,7 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
     setTimeout(() => setError(null), 2000);
   };
 
-  const isNetworkError = error?.includes("Network Error") || error?.includes("Failed to fetch");
-  const isMixedContent = isNetworkError && window.location.protocol === 'https:' && url.startsWith('http:');
+  const isCorsError = error === "CORS_BLOCK" || error?.includes("Failed to fetch") || error?.includes("NetworkError");
 
   return (
     <div className="w-full max-w-xl mx-auto glass-card rounded-3xl p-1">
@@ -148,78 +147,32 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
           </button>
         </form>
         
-        {/* Advanced Error Troubleshooting */}
+        {/* Simplified Error Handling */}
         {error && (
           <div className="mt-8 animate-fade-in">
-            {isNetworkError ? (
-              <div className="bg-[#1C1C1E] border border-red-500/30 rounded-xl p-5 space-y-4">
+            {isCorsError ? (
+              <div className="bg-[#1C1C1E] border border-orange-500/30 rounded-xl p-5 space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="bg-red-500/20 p-2 rounded-lg">
-                    <ShieldAlert className="w-5 h-5 text-red-400" />
+                  <div className="bg-orange-500/20 p-2 rounded-lg">
+                    <ShieldAlert className="w-5 h-5 text-orange-400" />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-sm">Connection Blocked by Browser</h4>
-                    <p className="text-gray-400 text-xs mt-1">
-                      {isMixedContent 
-                        ? "Mixed Content Error: You cannot connect to an insecure HTTP server from this HTTPS page."
-                        : "SSL/CORS Error: The browser blocked the connection to your server."
-                      }
+                    <h4 className="text-white font-bold text-sm">Direct Access Blocked</h4>
+                    <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                      Your browser is blocking the connection to <strong>{url}</strong> because the server is not configured to allow third-party apps (CORS).
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-black/40 rounded-lg p-4 border border-white/5 space-y-3">
-                  <p className="text-gray-300 text-xs font-bold uppercase tracking-wider">How to fix it:</p>
-                  
-                  {isMixedContent ? (
-                    <div className="flex items-start gap-3 text-sm text-gray-300">
-                      <span className="bg-gray-700 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0">1</span>
-                      <p>
-                        Click the lock icon in your browser address bar › Site Settings › <strong>Insecure Content</strong> › Allow. Then refresh the page.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                       <div className="flex items-start gap-3 text-sm text-gray-300">
-                        <span className="bg-gray-700 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0">1</span>
-                        <p>Click the button below. It will open a new tab.</p>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-gray-300">
-                        <span className="bg-gray-700 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0">2</span>
-                        <div className="space-y-2">
-                            <p>If you see a warning, click <strong>Advanced</strong> › <strong>Proceed (unsafe)</strong>.</p>
-                            <div className="bg-green-900/20 border border-green-500/20 p-3 rounded-lg flex gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-                                <p className="text-green-100 text-xs leading-relaxed">
-                                    If you see a page saying <strong>"This XML file does not appear to have any style information"</strong>, that means <strong>IT WORKED!</strong> Close that tab and come back here.
-                                </p>
-                            </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-gray-300">
-                        <span className="bg-gray-700 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0">3</span>
-                        <p>Click "Connect & Analyze" again.</p>
-                      </div>
-                      
-                      <a 
-                        href={`${url}/status/sessions/history/all?X-Plex-Token=${token}&limit=1`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg text-sm font-bold transition-all border border-white/10"
-                      >
-                         <Globe className="w-4 h-4" /> Verify Connection (Authorize SSL)
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                   <p className="text-xs text-gray-500">Still not working?</p>
+                <div className="bg-black/40 rounded-lg p-4 border border-white/5 flex flex-col items-center text-center space-y-3">
+                   <p className="text-gray-300 text-sm font-medium">
+                     Don't worry! You can still use the app by uploading a history file.
+                   </p>
                    <button 
-                     onClick={() => document.getElementById('switch-to-csv')?.click()}
-                     className="text-[#e5a00d] text-xs font-bold hover:underline flex items-center gap-1"
+                     onClick={onSwitchToCSV}
+                     className="w-full flex items-center justify-center gap-2 bg-[#e5a00d]/10 hover:bg-[#e5a00d]/20 text-[#e5a00d] border border-[#e5a00d]/50 py-3 rounded-xl font-bold transition-all text-sm"
                    >
-                     Try CSV Upload <FileSpreadsheet className="w-3 h-3" />
+                     <FileSpreadsheet className="w-4 h-4" /> Switch to CSV Upload
                    </button>
                 </div>
               </div>
