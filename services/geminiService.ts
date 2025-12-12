@@ -147,7 +147,12 @@ export const generateYearlyRecap = async (
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: prompt }] },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ],
         config: {
             imageConfig: {
                 aspectRatio: '3:4'
@@ -166,7 +171,12 @@ export const generateYearlyRecap = async (
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
-        contents: { parts: [{ text: prompt }] },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ],
         config: {
           imageConfig: {
             imageSize: '2K',
@@ -182,7 +192,10 @@ export const generateYearlyRecap = async (
   try {
     // Attempt 1: Flash Model (Best for stability)
     const response = await withRetry(generateFlash);
-    const flashParts = response.candidates?.[0]?.content?.parts || [];
+    const flashParts =
+      response.response?.candidates?.[0]?.content?.parts ||
+      response.candidates?.[0]?.content?.parts ||
+      [];
     for (const part of flashParts) {
         if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
@@ -192,7 +205,10 @@ export const generateYearlyRecap = async (
     // Attempt 2: Pro Model (Fallback)
     try {
         const response = await withRetry(generatePro);
-        const proParts = response.candidates?.[0]?.content?.parts || [];
+        const proParts =
+          response.response?.candidates?.[0]?.content?.parts ||
+          response.candidates?.[0]?.content?.parts ||
+          [];
         for (const part of proParts) {
             if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
