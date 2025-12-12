@@ -18,6 +18,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   // Heatmap State
   const [heatmapMode, setHeatmapMode] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
   const [selectedHeatmapMonth, setSelectedHeatmapMonth] = useState<number>(0); 
+  const [selectedHeatmapYear, setSelectedHeatmapYear] = useState<number>(0);
 
   // Poster State
   const [yearlyPoster, setYearlyPoster] = useState<string | null>(null);
@@ -71,11 +72,16 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   }, [currentReport?.year, selectedMediaType, selectedUser]);
 
   useEffect(() => {
-    if (currentReport?.busiestMonth) {
-      const m = currentReport.monthlyBreakdown.find(m => m.monthName === currentReport.busiestMonth);
-      if (m) {
-        const monthNum = parseInt(m.monthKey.split('-')[1]) - 1;
-        if (!isNaN(monthNum)) setSelectedHeatmapMonth(monthNum);
+    if (currentReport) {
+      // Sync local heatmap filters with the new report year/context
+      setSelectedHeatmapYear(currentReport.year);
+      
+      if (currentReport.busiestMonth) {
+        const m = currentReport.monthlyBreakdown.find(m => m.monthName === currentReport.busiestMonth);
+        if (m) {
+          const monthNum = parseInt(m.monthKey.split('-')[1]) - 1;
+          if (!isNaN(monthNum)) setSelectedHeatmapMonth(monthNum);
+        }
       }
     }
   }, [currentReport]);
@@ -87,10 +93,11 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     } else if (heatmapMode === 'monthly') {
       return generateMonthlyHeatmap(filteredData, currentReport.year, selectedHeatmapMonth);
     } else {
-      // For yearly, we pass the daily activity array which Charts.tsx handles
-      return currentReport.dailyActivity;
+      // For yearly, find the report for the selected year
+      const reportForYear = reports.find(r => r.year === selectedHeatmapYear);
+      return reportForYear ? reportForYear.dailyActivity : currentReport.dailyActivity;
     }
-  }, [currentReport, heatmapMode, selectedHeatmapMonth, filteredData]);
+  }, [currentReport, heatmapMode, selectedHeatmapMonth, filteredData, selectedHeatmapYear, reports]);
 
   const handleGenerateYearlyPoster = async () => {
     if (!currentReport) return;
@@ -233,7 +240,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                 {heatmapMode === 'weekly' 
                     ? "Your typical weekly schedule."
                     : heatmapMode === 'yearly' 
-                    ? `Viewing consistency throughout ${currentReport.year}.`
+                    ? `Viewing consistency throughout ${selectedHeatmapYear || currentReport.year}.`
                     : `Daily breakdown for ${monthNames[selectedHeatmapMonth] || 'Selected Month'}.`}
                 </p>
             </div>
@@ -258,7 +265,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                     <CalendarDays className="w-4 h-4" /> Yearly
                 </button>
                 
-                {heatmapMode === 'monthly' && (
+                {(heatmapMode === 'monthly' || heatmapMode === 'yearly') && (
                     <div className="h-6 w-px bg-gray-700 mx-1"></div>
                 )}
 
@@ -273,6 +280,18 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                         ))}
                     </select>
                 )}
+
+                {heatmapMode === 'yearly' && (
+                    <select 
+                        value={selectedHeatmapYear}
+                        onChange={(e) => setSelectedHeatmapYear(parseInt(e.target.value))}
+                        className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer hover:text-[#e5a00d]"
+                    >
+                        {reports.map((r) => (
+                        <option key={r.year} value={r.year} className="bg-[#1C1C1E]">{r.year}</option>
+                        ))}
+                    </select>
+                )}
             </div>
             </div>
 
@@ -280,7 +299,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                 <ActivityHeatmap 
                     data={heatmapData} 
                     mode={heatmapMode} 
-                    year={currentReport.year} 
+                    year={heatmapMode === 'yearly' ? selectedHeatmapYear : currentReport.year} 
                 />
             </div>
         </div>
