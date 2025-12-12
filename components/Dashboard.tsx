@@ -2,11 +2,14 @@
 import React, { useState } from 'react';
 import { AnalyticsSummary, PlayHistoryItem, TopItem } from '../types';
 import { 
-  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart, DurationDistributionChart 
+  HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart, DurationDistributionChart, DailyTrendChart,
+  UserComparisonChart, UserStatsTable
 } from './Charts';
 import { Reports } from './Reports';
-import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play, Hourglass, PieChart } from 'lucide-react';
+import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play, Hourglass, PieChart, TrendingUp, Download, Users } from 'lucide-react';
+import { exportToCSV, exportSummaryToCSV } from '../services/exportService';
 import { APP_COLORS } from '../constants';
+import { calculateUserComparisons } from '../services/dataProcessing';
 
 interface DashboardProps {
   summary: AnalyticsSummary;
@@ -16,6 +19,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview');
+  const userComparisons = React.useMemo(() => calculateUserComparisons(rawData), [rawData]);
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
@@ -47,12 +51,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             </button>
             </div>
 
-            <button 
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => exportSummaryToCSV(summary)}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] hover:bg-[#3A3A3C] border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all"
+                title="Export summary to CSV"
+              >
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
+              <button 
                 onClick={onReset}
                 className="hidden sm:block text-xs font-medium text-gray-500 hover:text-[#e5a00d] transition-colors"
-            >
+              >
                 Switch Source
-            </button>
+              </button>
+            </div>
         </div>
       </div>
 
@@ -128,6 +141,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
                 <MonthlyTrendChart summary={summary} />
             </div>
 
+            {/* Chart: Daily Trend */}
+            <div className="lg:col-span-2 glass-card rounded-3xl p-6">
+                <DailyTrendSection summary={summary} />
+            </div>
+
             {/* Chart: Weekly Habits */}
             <div className="lg:col-span-2 glass-card rounded-3xl p-6">
                 <div className="flex items-center gap-3 mb-6">
@@ -144,6 +162,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             <TopListCard title="Top Shows" items={summary.topShows} icon={<Tv className="w-5 h-5 text-green-400"/>} />
           </div>
 
+          {/* User Comparison Section */}
+          {userComparisons.length > 1 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="glass-card rounded-3xl p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-gray-800/50 p-2 rounded-lg"><Users className="w-5 h-5 text-[#e5a00d]" /></div>
+                  <h3 className="font-bold text-lg">User Comparison</h3>
+                </div>
+                <UserComparisonChart users={userComparisons} />
+              </div>
+              <div className="glass-card rounded-3xl p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-gray-800/50 p-2 rounded-lg"><Users className="w-5 h-5 text-blue-400" /></div>
+                  <h3 className="font-bold text-lg">User Stats</h3>
+                </div>
+                <UserStatsTable users={userComparisons} />
+              </div>
+            </div>
+          )}
+
         </div>
       )}
     </div>
@@ -151,6 +189,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
 };
 
 type SortOption = 'count' | 'duration' | 'recent';
+
+const DailyTrendSection: React.FC<{ summary: AnalyticsSummary }> = ({ summary }) => {
+  const [days, setDays] = useState<30 | 90>(30);
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-gray-800/50 p-2 rounded-lg"><TrendingUp className="w-5 h-5 text-[#e5a00d]" /></div>
+          <h3 className="font-bold text-lg">Daily Trend</h3>
+        </div>
+        <div className="flex bg-[#1C1C1E] p-1 rounded-lg border border-white/5">
+          <button
+            onClick={() => setDays(30)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+              days === 30 ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            30 Days
+          </button>
+          <button
+            onClick={() => setDays(90)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+              days === 90 ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            90 Days
+          </button>
+        </div>
+      </div>
+      <DailyTrendChart summary={summary} days={days} />
+    </>
+  );
+};
 
 const TopListCard = ({ title, items, icon }: { title: string, items: TopItem[], icon: React.ReactNode }) => {
   const [sort, setSort] = useState<SortOption>('count');

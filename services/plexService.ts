@@ -127,6 +127,14 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
             const viewedAt = parseInt(node.getAttribute('viewedAt') || '0');
             if (viewedAt === 0) continue;
 
+            // Extract user name from various possible attributes
+            // Plex XML may have: user, username, accountTitle, or we need to look for User element
+            const userName = node.getAttribute('username') || 
+                            node.getAttribute('user') || 
+                            node.getAttribute('accountTitle') || 
+                            node.getAttribute('friendlyName') ||
+                            '';
+            
             items.push({
                 title: node.getAttribute('title') || 'Unknown',
                 grandparentTitle: node.getAttribute('grandparentTitle') || undefined,
@@ -134,8 +142,8 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
                 type: node.getAttribute('type') || 'unknown',
                 viewedAt: viewedAt,
                 duration: parseInt(node.getAttribute('duration') || '0'),
-                User: { title: node.getAttribute('user') || '' },
-                Account: { title: node.getAttribute('accountID') || 'User' } 
+                User: { title: userName || 'Server Owner' },
+                Account: { title: userName || 'Server Owner' } 
             });
         }
     };
