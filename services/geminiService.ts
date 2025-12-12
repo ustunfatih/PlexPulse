@@ -154,6 +154,7 @@ export const generateYearlyRecap = async (
           }
         ],
         config: {
+            responseMimeType: 'image/png',
             imageConfig: {
                 aspectRatio: '3:4'
                 // imageSize not supported on Flash
@@ -178,6 +179,7 @@ export const generateYearlyRecap = async (
           }
         ],
         config: {
+          responseMimeType: 'image/png',
           imageConfig: {
             imageSize: '2K',
             aspectRatio: '3:4'
