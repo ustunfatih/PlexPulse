@@ -7,6 +7,9 @@ interface PlexMetadata {
   type: string;
   viewedAt: number; // Unix timestamp
   duration?: number; // ms, optional
+  accountTitle?: string;
+  accountUsername?: string;
+  accountFriendlyName?: string;
   User?: {
     title?: string;
     username?: string;
@@ -97,10 +100,13 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         // Map User safely - Check multiple possible locations for user info
         // Plex API can return user info in different fields depending on version/config
-        const userName = 
+        const userName =
           item.user || // Direct field
           item.username || // Direct username field
           item.friendlyName || // Direct friendly name
+          item.accountTitle || // Some servers expose account info as flat fields
+          item.accountUsername ||
+          item.accountFriendlyName ||
           item.User?.title || // User object title
           item.User?.username || // User object username
           item.User?.friendlyName || // User object friendly name
