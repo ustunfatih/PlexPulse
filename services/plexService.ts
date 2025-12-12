@@ -37,8 +37,19 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   // normalize URL (remove trailing slash)
   const cleanUrl = serverUrl.replace(/\/$/, '');
 
-  const buildHistoryUrl = (includeAllAccounts: boolean) =>
-    `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000${includeAllAccounts ? '&accountID=all' : ''}&X-Plex-Token=${token}`;
+  const buildHistoryUrl = (includeAllAccounts: boolean) => {
+    const params = new URLSearchParams({
+      sort: 'viewedAt:desc',
+      limit: '5000',
+      'X-Plex-Token': token
+    });
+
+    if (includeAllAccounts) {
+      params.append('accountID', 'all');
+    }
+
+    return `${cleanUrl}/status/sessions/history/all?${params.toString()}`;
+  };
 
   const requestHistory = async (includeAllAccounts: boolean) =>
     fetch(buildHistoryUrl(includeAllAccounts), {
