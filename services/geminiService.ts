@@ -146,7 +146,7 @@ export const generateYearlyRecap = async (
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-2.5-flash-preview-image-generation',
         contents: [
           {
             role: 'user',
@@ -154,72 +154,92 @@ export const generateYearlyRecap = async (
           }
         ],
         config: {
-            responseMimeType: 'image/png',
-            imageConfig: {
-                aspectRatio: '3:4'
-                // imageSize not supported on Flash
-            }
+            responseModalities: ['Image', 'Text'],
         }
       });
-      return response.response || response;
+      return response;
   };
 
-  // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
-  const generatePro = async () => {
+  // Strategy 2: Imagen Model (Fallback - Dedicated image generation)
+  const generateImagen = async () => {
       const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key missing");
 
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }]
-          }
-        ],
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: prompt,
         config: {
-          responseMimeType: 'image/png',
-          imageConfig: {
-            imageSize: '2K',
-            aspectRatio: '3:4'
-          }
+          numberOfImages: 1,
+          aspectRatio: '3:4'
         }
       });
-      return response.response || response;
+      return response;
+  };
+
+  // Helper to extract image from Gemini response
+  const extractImageFromGeminiResponse = (response: any): string | null => {
+    // Try multiple response structures
+    const candidates =
+      response?.candidates ||
+      response?.response?.candidates ||
+      [];
+
+    for (const candidate of candidates) {
+      const parts = candidate?.content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          return `data:${mimeType};base64,${part.inlineData.data}`;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Helper to extract image from Imagen response
+  const extractImageFromImagenResponse = (response: any): string | null => {
+    const images = response?.generatedImages || response?.images || [];
+    if (images.length > 0) {
+      const img = images[0];
+      const data = img.image?.imageBytes || img.imageBytes || img.image?.bytesBase64Encoded;
+      if (data) {
+        return `data:image/png;base64,${data}`;
+      }
+    }
+    return null;
   };
 
   // --- Execution Flow ---
 
   try {
-    // Attempt 1: Flash Model (Best for stability)
+    // Attempt 1: Gemini Flash Model (Best for stability and creativity)
+    console.log("Attempting image generation with Gemini Flash...");
     const response = await withRetry(generateFlash);
-    const flashParts =
-      response.response?.candidates?.[0]?.content?.parts ||
-      response.candidates?.[0]?.content?.parts ||
-      [];
-    for (const part of flashParts) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+    const imageUrl = extractImageFromGeminiResponse(response);
+    if (imageUrl) {
+      console.log("Successfully generated image with Gemini Flash");
+      return imageUrl;
     }
+    console.warn("Gemini Flash returned no image data");
   } catch (error) {
-    console.warn("Flash model failed, attempting fallback to Pro model...", error);
-    
-    // Attempt 2: Pro Model (Fallback)
-    try {
-        const response = await withRetry(generatePro);
-        const proParts =
-          response.response?.candidates?.[0]?.content?.parts ||
-          response.candidates?.[0]?.content?.parts ||
-          [];
-        for (const part of proParts) {
-            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-        }
-    } catch (finalError) {
-        console.error("All image generation attempts failed.", finalError);
-        // Throwing here allows the UI to catch it and display the error message
-        throw finalError;
-    }
+    console.warn("Gemini Flash model failed, attempting fallback to Imagen...", error);
   }
-  
+
+  // Attempt 2: Imagen Model (Fallback - dedicated image generation)
+  try {
+    console.log("Attempting image generation with Imagen...");
+    const response = await withRetry(generateImagen);
+    const imageUrl = extractImageFromImagenResponse(response);
+    if (imageUrl) {
+      console.log("Successfully generated image with Imagen");
+      return imageUrl;
+    }
+    console.warn("Imagen returned no image data");
+  } catch (finalError) {
+    console.error("All image generation attempts failed.", finalError);
+    throw finalError;
+  }
+
   return null;
 };
