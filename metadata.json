@@ -1,0 +1,5 @@
+{
+  "name": "PlexPulse Analytics",
+  "description": "A visual dashboard for your Plex watch history. Upload a CSV export (Tautulli/Plex) to visualize viewing habits, peak times, and get AI-powered insights.",
+  "requestFramePermissions": []
+}
