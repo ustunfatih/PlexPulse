@@ -26,19 +26,7 @@ const getSystemInstruction = () => `
   Keep it concise (under 250 words total). Use emojis.
 `;
 
-const getLocalApiKey = () => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('geminiApiKey');
-    }
-  } catch (error) {
-    console.warn('Unable to read local Gemini key', error);
-  }
-  return null;
-};
-
 const getApiKey = () =>
-  getLocalApiKey() ||
   import.meta.env.VITE_GEMINI_API_KEY ||
   import.meta.env.GEMINI_API_KEY ||
   process.env.VITE_GEMINI_API_KEY ||
