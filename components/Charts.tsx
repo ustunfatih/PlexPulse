@@ -9,13 +9,16 @@ import { APP_COLORS } from '../constants';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    const dataItem = payload[0].payload;
+    const unit = dataItem.unit || payload[0].unit || 'plays';
+    
     return (
       <div className="glass bg-[#15171C]/90 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-md z-50">
-        <p className="text-gray-400 font-medium text-xs mb-1 uppercase tracking-wide">{label}</p>
+        <p className="text-gray-400 font-medium text-xs mb-1 uppercase tracking-wide">{label || dataItem.name}</p>
         <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#e5a00d]"></div>
             <p className="text-white text-sm font-bold">
-            {payload[0].value} <span className="text-gray-500 font-normal">{payload[0].name === 'durationHours' ? 'hrs' : payload[0].unit || 'plays'}</span>
+            {payload[0].value} <span className="text-gray-500 font-normal">{unit}</span>
             </p>
         </div>
       </div>

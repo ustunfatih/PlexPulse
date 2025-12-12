@@ -12,20 +12,6 @@ declare global {
   }
 }
 
-const getSystemInstruction = () => `
-  You are an expert media analyst with a witty, slightly sassy, but helpful personality. 
-  You are analyzing a user's Plex watch history stats.
-  Your goal is to provide a "Spotify Wrapped" style summary.
-  
-  Structure your response in Markdown with these sections:
-  1. **The Vibe Check**: A 1-sentence summary of their taste.
-  2. **Top Obsessions**: Comment on their most watched movie and TV show.
-  3. **Timing Habits**: Analyze when they watch (e.g., "You're a night owl" or "Weekend warrior").
-  4. **The Verdict**: A playful rating out of 10 for their media diet.
-
-  Keep it concise (under 250 words total). Use emojis.
-`;
-
 // Helper to handle API calls with retry for auth/permission issues
 async function withRetry<T>(
   apiCall: () => Promise<T>
@@ -65,55 +51,6 @@ async function withRetry<T>(
     throw error;
   }
 }
-
-export const generateInsight = async (summary: AnalyticsSummary): Promise<string> => {
-  // Pre-emptive check
-  if (window.aistudio) {
-     const hasKey = await window.aistudio.hasSelectedApiKey();
-     if (!hasKey) {
-        await window.aistudio.openSelectKey();
-     }
-  }
-
-  const performGeneration = async () => {
-    // CRITICAL: process.env.API_KEY must be read INSIDE this function
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key is missing.");
-
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Create copies of arrays before sorting to avoid mutating read-only state
-    const busiestDayObj = [...summary.playsByDayOfWeek].sort((a,b) => b.count - a.count)[0];
-    const peakHourObj = [...summary.playsByHour].sort((a,b) => b.count - a.count)[0];
-
-    const dataContext = JSON.stringify({
-      totalHours: summary.totalDurationHours,
-      topMovies: summary.topMovies.slice(0, 3),
-      topShows: summary.topShows.slice(0, 3),
-      busiestDay: busiestDayObj?.day,
-      peakHour: peakHourObj?.hour,
-      mediaSplit: summary.mediaTypeDistribution
-    });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Here is the user's viewing data: ${dataContext}`,
-      config: {
-        systemInstruction: getSystemInstruction(),
-        temperature: 0.7,
-      }
-    });
-
-    return response.text || "Could not generate insights.";
-  };
-
-  try {
-    return await withRetry(performGeneration);
-  } catch (error) {
-    console.error("Final Insight Error:", error);
-    return "Sorry, I couldn't analyze your data. Please ensure you have a valid API key with billing enabled.";
-  }
-};
 
 export const generateYearlyRecap = async (
   year: number,

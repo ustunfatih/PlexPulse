@@ -332,16 +332,16 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
       </div>
 
       {/* 4. Monthly Chronicles (Table Style) */}
-      <div className="glass-card rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-6 border-b border-white/5 bg-[#1C1C1E]">
+      <div className="glass-card rounded-3xl overflow-hidden border border-white/5 relative">
+        <div className="p-6 border-b border-white/5 bg-[#1C1C1E] sticky top-0 z-10">
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-[#e5a00d]" /> Monthly Chronicles
             </h3>
         </div>
         
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-10 shadow-lg">
                     <tr className="bg-[#15171C] text-gray-500 text-xs uppercase tracking-wider">
                         <th className="p-5 font-bold border-b border-white/5">Month</th>
                         <th className="p-5 font-bold border-b border-white/5 w-1/2">Most Watched</th>
@@ -396,57 +396,62 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   );
 };
 
-const UserFilterDropdown = ({ users, selected, onSelect }: { users: string[], selected: string, onSelect: (u: string) => void }) => (
-    <div className="relative group w-full sm:w-auto">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-            <Users className="w-4 h-4" />
-        </div>
-        <select 
-            value={selected}
-            onChange={(e) => onSelect(e.target.value)}
-            disabled={users.length === 0}
-            className="appearance-none w-full sm:w-[200px] bg-[#2C2C2E] text-white pl-10 pr-8 py-3 rounded-xl text-sm font-bold border border-transparent hover:border-gray-600 focus:border-[#e5a00d] outline-none cursor-pointer transition-colors disabled:opacity-50 shadow-sm"
-        >
-            <option value="all">All Users</option>
-            {users.map(u => (
-            <option key={u} value={u}>{u}</option>
-            ))}
-        </select>
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-            <ChevronDown className="w-4 h-4" />
-        </div>
-    </div>
-);
-
-const MediaTypeSelector = ({ selected, onSelect }: { selected: any, onSelect: (v: any) => void }) => (
-    <div className="flex bg-[#2C2C2E] p-1 rounded-xl border border-white/5 w-full sm:w-auto">
-       <button
-         onClick={() => onSelect('all')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${selected === 'all' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         All
-       </button>
-       <button
-         onClick={() => onSelect('movie')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${selected === 'movie' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         <Film className="w-3 h-3" /> Movies
-       </button>
-       <button
-         onClick={() => onSelect('episode')}
-         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${selected === 'episode' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
-       >
-         <Tv className="w-3 h-3" /> Shows
-       </button>
-    </div>
-);
-
-const StatBox = ({ label, value, icon }: any) => (
-  <div className="glass-card p-4 sm:p-6 rounded-3xl flex flex-col justify-between h-full min-h-[120px]">
-    <div className="bg-gray-800/50 w-8 h-8 rounded-lg flex items-center justify-center mb-4">{icon}</div>
+const StatBox = ({ label, value, icon }: { label: string, value: string | number, icon: React.ReactNode }) => (
+  <div className="glass-card p-6 rounded-3xl flex items-center justify-between border border-white/5 hover:border-white/10 transition-colors">
     <div>
-        <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">{value}</div>
-        <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">{label}</div>
+       <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">{label}</p>
+       <p className="text-3xl font-black text-white tracking-tight">{value}</p>
+    </div>
+    <div className="w-12 h-12 rounded-2xl bg-[#1C1C1E] border border-white/5 flex items-center justify-center shadow-inner">
+       {icon}
     </div>
   </div>
 );
+
+const UserFilterDropdown = ({ users, selected, onSelect }: { users: string[], selected: string, onSelect: (u: string) => void }) => {
+    return (
+        <div className="relative group min-w-[150px]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Users className="h-4 w-4 text-gray-500" />
+            </div>
+            <select
+                value={selected}
+                onChange={(e) => onSelect(e.target.value)}
+                className="appearance-none bg-[#1C1C1E] text-white text-sm font-bold border border-white/10 rounded-xl py-3 pl-10 pr-10 hover:border-[#e5a00d] focus:outline-none focus:ring-1 focus:ring-[#e5a00d] transition-all w-full cursor-pointer"
+            >
+                <option value="all">All Users</option>
+                {users.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <ChevronDown className="h-4 w-4 text-gray-500" />
+            </div>
+        </div>
+    );
+};
+
+const MediaTypeSelector = ({ selected, onSelect }: { selected: 'all' | 'movie' | 'episode', onSelect: (t: 'all' | 'movie' | 'episode') => void }) => {
+    return (
+        <div className="flex bg-[#1C1C1E] p-1 rounded-xl border border-white/5">
+            <button
+                onClick={() => onSelect('all')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${selected === 'all' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+            >
+                All
+            </button>
+            <button
+                onClick={() => onSelect('movie')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${selected === 'movie' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+            >
+                <Film className="w-3 h-3" /> Movies
+            </button>
+            <button
+                onClick={() => onSelect('episode')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${selected === 'episode' ? 'bg-[#3A3A3C] text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+            >
+                <Tv className="w-3 h-3" /> Shows
+            </button>
+        </div>
+    );
+};

@@ -88,7 +88,7 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
     
   summary.durationByType = Object.entries(typeDuration)
     .filter(([_, value]) => value > 0)
-    .map(([name, value]) => ({ name, value: Math.round(value * 10) / 10 }));
+    .map(([name, value]) => ({ name, value: Math.round(value * 10) / 10, unit: 'hrs' }));
 
   summary.totalDurationHours = Math.round(summary.totalDurationHours || 0);
 
@@ -164,7 +164,6 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
       const topEntry: [string, number] = sortedEntries.length > 0 ? sortedEntries[0] : ['None', 0];
       
       // Determine dominant type for top item
-      // We can infer type from the item collection, but simple heuristic:
       let topItemType = 'mixed';
       // Find the type of the top item by looking it up in mItems
       const topItemSample = mItems.find(i => 
@@ -196,7 +195,7 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
     // Sort chronologically (Jan -> Dec)
     monthlyBreakdown.sort((a,b) => a.monthKey.localeCompare(b.monthKey));
 
-    // Calculate busiest month (using a copy to avoid sorting the main array)
+    // Calculate busiest month
     const sortedByHours = [...monthlyBreakdown].sort((a,b) => b.totalHours - a.totalHours);
     const busiest = sortedByHours[0];
     
