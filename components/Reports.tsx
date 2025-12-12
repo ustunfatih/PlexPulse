@@ -97,11 +97,17 @@ export const Reports: React.FC<ReportsProps> = ({ data, selectedUser, selectedMe
       console.error(e);
       let msg = "Failed to generate poster.";
       const errStr = (e.message || JSON.stringify(e)).toLowerCase();
-      
+
       if (errStr.includes('403') || errStr.includes('permission')) {
-          msg = "Permission Denied: Please verify your API Key has the 'Generative Language API' enabled in Google Cloud Console.";
+          msg = "Permission Denied: Ensure your API Key has the 'Generative Language API' enabled in Google Cloud Console and billing is active.";
       } else if (errStr.includes('quota') || errStr.includes('429')) {
-          msg = "Quota Exceeded: You have hit the rate limit for image generation.";
+          msg = "Quota Exceeded: You have hit the rate limit for image generation. Please try again later.";
+      } else if (errStr.includes('not found') || errStr.includes('404')) {
+          msg = "Model not available: The image generation model may not be enabled for your API key. Try enabling 'Imagen API' in Google Cloud Console.";
+      } else if (errStr.includes('billing')) {
+          msg = "Billing Required: Image generation requires a paid API plan. Please enable billing in Google Cloud Console.";
+      } else if (errStr.includes('api key') || errStr.includes('invalid')) {
+          msg = "Invalid API Key: Please check your VITE_GEMINI_API_KEY environment variable.";
       }
       setPosterError(msg);
     } finally {
