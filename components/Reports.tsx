@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
 import { ActivityHeatmap } from './Charts';
-import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays } from 'lucide-react';
+import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays, AlertTriangle } from 'lucide-react';
 import { generateYearlyRecap } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
 
@@ -23,6 +23,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   // Poster State
   const [yearlyPoster, setYearlyPoster] = useState<string | null>(null);
   const [loadingPoster, setLoadingPoster] = useState(false);
+  const [posterError, setPosterError] = useState<string | null>(null);
 
   // Extract unique users
   const users = useMemo(() => {
@@ -69,6 +70,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   // Reset poster when year changes
   useEffect(() => {
     setYearlyPoster(null);
+    setPosterError(null);
   }, [currentReport?.year, selectedMediaType, selectedUser]);
 
   useEffect(() => {
@@ -102,6 +104,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const handleGenerateYearlyPoster = async () => {
     if (!currentReport) return;
     setLoadingPoster(true);
+    setPosterError(null);
     
     try {
       // Collect the top item from each month
@@ -114,10 +117,20 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
       const imageUrl = await generateYearlyRecap(currentReport.year, topItems, label);
       if (imageUrl) {
         setYearlyPoster(imageUrl);
+      } else {
+        throw new Error("No image data received.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Failed to generate poster. See console.");
+      let msg = "Failed to generate poster.";
+      const errStr = (e.message || JSON.stringify(e)).toLowerCase();
+      
+      if (errStr.includes('403') || errStr.includes('permission')) {
+          msg = "Permission Denied: Please verify your API Key has the 'Generative Language API' enabled in Google Cloud Console.";
+      } else if (errStr.includes('quota') || errStr.includes('429')) {
+          msg = "Quota Exceeded: You have hit the rate limit for image generation.";
+      }
+      setPosterError(msg);
     } finally {
       setLoadingPoster(false);
     }
@@ -147,9 +160,8 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     <div className="space-y-8 animate-fade-in">
       
       {/* 1. Filter Control Bar (Placement: Below Tabs, Sticky) */}
-      {/* Gestalt Principle: Common Region */}
       <div className="flex flex-col xl:flex-row gap-6 justify-between items-center mb-8 sticky top-[108px] z-30 p-4 rounded-2xl glass border border-white/5 transition-all">
-         {/* Year Selector - Fitts's Law: Large Targets */}
+         {/* Year Selector */}
          <div className="flex items-center gap-4 w-full xl:w-auto justify-between xl:justify-start">
             <button 
               onClick={handlePrev} 
@@ -213,10 +225,20 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                         <Clapperboard className="w-10 h-10 text-[#e5a00d]" />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2">Year in Review</h3>
-                    <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                    <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                         Generate a custom AI art poster representing your {selectedMediaType === 'all' ? 'viewing' : selectedMediaType === 'movie' ? 'movie' : 'TV'} journey in {currentReport.year}.
                         <br/>It features your top hits from each month.
                     </p>
+                    
+                    {posterError && (
+                        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-left mb-6 w-full animate-in fade-in slide-in-from-bottom-2">
+                           <div className="flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                                <p className="text-xs text-red-200">{posterError}</p>
+                           </div>
+                        </div>
+                    )}
+
                     <button 
                         onClick={handleGenerateYearlyPoster}
                         disabled={loadingPoster}

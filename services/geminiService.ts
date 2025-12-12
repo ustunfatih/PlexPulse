@@ -26,21 +26,62 @@ const getSystemInstruction = () => `
   Keep it concise (under 250 words total). Use emojis.
 `;
 
+// Helper to handle API calls with retry for auth/permission issues
+async function withRetry<T>(
+  apiCall: () => Promise<T>
+): Promise<T> {
+  try {
+    return await apiCall();
+  } catch (error: any) {
+    console.error("Gemini Operation Failed:", error);
+
+    // Convert error to string to catch various formats (nested objects, Error instances, etc.)
+    const errStr = (JSON.stringify(error) + (error.message || '') + (error.toString() || '')).toLowerCase();
+    
+    const isPermissionError = 
+      errStr.includes('permission_denied') || 
+      errStr.includes('permission denied') || 
+      errStr.includes('"code":403') ||
+      errStr.includes('"status":403') ||
+      errStr.includes('billing');
+      
+    const isNotFoundError = errStr.includes('requested entity was not found') || errStr.includes('not found');
+
+    // Only attempt interactive retry if we are in the AI Studio environment
+    if (window.aistudio && (isPermissionError || isNotFoundError)) {
+      console.log("Auth/Permission Error detected. Prompting for new API Key...");
+      await window.aistudio.openSelectKey();
+      
+      // Retry with new key (which is automatically injected into process.env.API_KEY)
+      try {
+        console.log("Retrying operation with new key...");
+        return await apiCall();
+      } catch (retryError) {
+        console.error("Retry failed:", retryError);
+        throw retryError;
+      }
+    }
+    
+    throw error;
+  }
+}
+
 export const generateInsight = async (summary: AnalyticsSummary): Promise<string> => {
-  // Check apiKey availability, but allow empty to try anyway if environment is set up strictly
-  if (!process.env.API_KEY) {
-     // If no key in env, try to prompt user if possible, otherwise error
-     if (window.aistudio) {
+  // Pre-emptive check
+  if (window.aistudio) {
+     const hasKey = await window.aistudio.hasSelectedApiKey();
+     if (!hasKey) {
         await window.aistudio.openSelectKey();
-     } else {
-        return "Please provide a valid API Key to unlock insights.";
      }
   }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const performGeneration = async () => {
+    // CRITICAL: process.env.API_KEY must be read INSIDE this function
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key is missing.");
+
+    const ai = new GoogleGenAI({ apiKey });
     
-    // Prepare a simplified data object to save tokens and focus the model
     const dataContext = JSON.stringify({
       totalHours: summary.totalDurationHours,
       topMovies: summary.topMovies.slice(0, 3),
@@ -59,10 +100,14 @@ export const generateInsight = async (summary: AnalyticsSummary): Promise<string
       }
     });
 
-    return response.text || "Could not generate insights at this time.";
+    return response.text || "Could not generate insights.";
+  };
+
+  try {
+    return await withRetry(performGeneration);
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Sorry, I ran into trouble analyzing your data. Please check your API key.";
+    console.error("Final Insight Error:", error);
+    return "Sorry, I couldn't analyze your data. Please ensure you have a valid API key with billing enabled.";
   }
 };
 
@@ -72,35 +117,51 @@ export const generateYearlyRecap = async (
   mediaTypeLabel: string
 ): Promise<string | null> => {
   
-  // 1. Ensure user has selected a paid key for the Pro model
-  // This is the initial check
   if (window.aistudio) {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
       await window.aistudio.openSelectKey();
     }
   }
+  
+  const uniqueTitles = Array.from(new Set(titles)).slice(0, 10);
+  const prompt = `Create a spectacular, cinematic movie poster titled '${year} IN REVIEW'.
+  The poster should be an artistic collage featuring elements, characters, or vibes from the following ${mediaTypeLabel}:
+  ${uniqueTitles.join(', ')}.
+  
+  Style: High-end digital art, vibrant colors, cohesive composition like a blockbuster crossover poster.
+  The text '${year}' should be prominent and stylized.`;
 
-  // Helper to create the request
-  const makeRequest = async () => {
-      // Always create a new instance to grab the latest process.env.API_KEY
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      // We take the top unique titles (limit to 12 max to avoid token overload/messy image)
-      const uniqueTitles = Array.from(new Set(titles)).slice(0, 12);
-      
-      const prompt = `Create a spectacular, cinematic movie poster titled '${year} IN REVIEW'.
-      The poster should be an artistic collage featuring elements, characters, or vibes from the following ${mediaTypeLabel}:
-      ${uniqueTitles.join(', ')}.
-      
-      Style: High-end digital art, vibrant colors, cohesive composition like a blockbuster crossover poster.
-      The text '${year}' should be prominent and stylized.`;
+  // --- Generation Strategies ---
 
-      return await ai.models.generateContent({
+  // Strategy 1: Flash Image (Primary - Most Stable/Permissive)
+  const generateFlash = async () => {
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API Key missing");
+
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
+        config: {
+            imageConfig: {
+                aspectRatio: '3:4'
+                // imageSize not supported on Flash
+            }
+        }
+      });
+      return response;
+  };
+
+  // Strategy 2: Pro Model (Fallback - Higher Quality but stricter permissions)
+  const generatePro = async () => {
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API Key missing");
+      
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
-        contents: { 
-          parts: [{ text: prompt }] 
-        },
+        contents: { parts: [{ text: prompt }] },
         config: {
           imageConfig: {
             imageSize: '2K',
@@ -108,41 +169,32 @@ export const generateYearlyRecap = async (
           }
         }
       });
+      return response;
   };
 
+  // --- Execution Flow ---
+
   try {
-    const response = await makeRequest();
-    
+    // Attempt 1: Flash Model (Best for stability)
+    const response = await withRetry(generateFlash);
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
-  } catch (error: any) {
-    console.error("Image Generation Error:", error);
+  } catch (error) {
+    console.warn("Flash model failed, attempting fallback to Pro model...", error);
     
-    // RETRY LOGIC for 403 Permission Denied
-    // This happens if the current key is free tier or invalid for this model.
-    // We force the key selection dialog open.
-    if (window.aistudio && (error.status === 403 || error.message?.includes('permission') || error.message?.includes('PERMISSION_DENIED'))) {
-        console.log("Permission denied. Requesting valid API Key...");
-        await window.aistudio.openSelectKey();
-        
-        // Retry once with the new key (assuming user selected one)
-        try {
-             const response = await makeRequest();
-             for (const part of response.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData) {
-                    return `data:image/png;base64,${part.inlineData.data}`;
-                }
-            }
-        } catch (retryError) {
-             console.error("Retry failed:", retryError);
-             throw retryError;
+    // Attempt 2: Pro Model (Fallback)
+    try {
+        const response = await withRetry(generatePro);
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
         }
-    } else {
-        throw error;
+    } catch (finalError) {
+        console.error("All image generation attempts failed.", finalError);
+        // Throwing here allows the UI to catch it and display the error message
+        throw finalError;
     }
   }
+  
   return null;
 };
