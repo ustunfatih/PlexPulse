@@ -37,9 +37,16 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const users = useMemo(() => {
     const u = new Set<string>();
     data.forEach(d => {
-      if (d.user) u.add(d.user);
+      if (d.user && d.user.trim()) {
+        u.add(d.user.trim());
+      }
     });
-    return Array.from(u).sort();
+    const userList = Array.from(u).sort();
+    // Debug: Log users to console (can be removed later)
+    if (userList.length > 0) {
+      console.log('Found users:', userList);
+    }
+    return userList;
   }, [data]);
 
   useEffect(() => {

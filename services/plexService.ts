@@ -8,11 +8,18 @@ interface PlexMetadata {
   viewedAt: number; // Unix timestamp
   duration?: number; // ms, optional
   User?: {
-    title: string;
+    title?: string;
+    username?: string;
+    friendlyName?: string;
   };
   Account?: {
-    title: string;
+    title?: string;
+    username?: string;
+    friendlyName?: string;
   };
+  user?: string; // Direct field
+  username?: string; // Direct field
+  friendlyName?: string; // Direct field
 }
 
 interface PlexResponse {
@@ -88,8 +95,19 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         const durationMinutes = Math.round(durationMs / 60000);
 
-        // Map User safely (Check User object, then Account object, then default)
-        const userName = item.User?.title || item.Account?.title || 'Server Owner';
+        // Map User safely - Check multiple possible locations for user info
+        // Plex API can return user info in different fields depending on version/config
+        const userName = 
+          item.user || // Direct field
+          item.username || // Direct username field
+          item.friendlyName || // Direct friendly name
+          item.User?.title || // User object title
+          item.User?.username || // User object username
+          item.User?.friendlyName || // User object friendly name
+          item.Account?.title || // Account object title
+          item.Account?.username || // Account object username
+          item.Account?.friendlyName || // Account object friendly name
+          'Server Owner'; // Fallback
 
         return {
             title: item.title,
@@ -128,12 +146,41 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
             if (viewedAt === 0) continue;
 
             // Extract user name from various possible attributes
-            // Plex XML may have: user, username, accountTitle, or we need to look for User element
-            const userName = node.getAttribute('username') || 
-                            node.getAttribute('user') || 
-                            node.getAttribute('accountTitle') || 
-                            node.getAttribute('friendlyName') ||
-                            '';
+            // Plex XML may have: user, username, accountTitle, friendlyName, or nested User/Account elements
+            let userName = node.getAttribute('username') || 
+                          node.getAttribute('user') || 
+                          node.getAttribute('accountTitle') || 
+                          node.getAttribute('friendlyName') ||
+                          '';
+            
+            // Check for nested User element
+            if (!userName) {
+              const userElement = node.getElementsByTagName('User')[0];
+              if (userElement) {
+                userName = userElement.getAttribute('title') || 
+                          userElement.getAttribute('username') || 
+                          userElement.getAttribute('friendlyName') || 
+                          userElement.textContent?.trim() || 
+                          '';
+              }
+            }
+            
+            // Check for nested Account element
+            if (!userName) {
+              const accountElement = node.getElementsByTagName('Account')[0];
+              if (accountElement) {
+                userName = accountElement.getAttribute('title') || 
+                          accountElement.getAttribute('username') || 
+                          accountElement.getAttribute('friendlyName') || 
+                          accountElement.textContent?.trim() || 
+                          '';
+              }
+            }
+            
+            // Fallback to Server Owner if still empty
+            if (!userName) {
+              userName = 'Server Owner';
+            }
             
             items.push({
                 title: node.getAttribute('title') || 'Unknown',
@@ -142,8 +189,9 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
                 type: node.getAttribute('type') || 'unknown',
                 viewedAt: viewedAt,
                 duration: parseInt(node.getAttribute('duration') || '0'),
-                User: { title: userName || 'Server Owner' },
-                Account: { title: userName || 'Server Owner' } 
+                user: userName,
+                User: { title: userName },
+                Account: { title: userName } 
             });
         }
     };
