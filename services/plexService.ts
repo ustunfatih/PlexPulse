@@ -1,5 +1,12 @@
 import { PlayHistoryItem } from '../types';
 
+interface PlexUserInfo {
+  title?: string;
+  username?: string;
+  friendlyName?: string;
+  name?: string;
+}
+
 interface PlexMetadata {
   title: string;
   grandparentTitle?: string;
@@ -7,19 +14,17 @@ interface PlexMetadata {
   type: string;
   viewedAt: number; // Unix timestamp
   duration?: number; // ms, optional
-  User?: {
-    title?: string;
-    username?: string;
-    friendlyName?: string;
-  };
-  Account?: {
-    title?: string;
-    username?: string;
-    friendlyName?: string;
-  };
+  accountTitle?: string;
+  accountUsername?: string;
+  accountFriendlyName?: string;
+  userTitle?: string;
+  userName?: string;
   user?: string; // Direct field
   username?: string; // Direct field
   friendlyName?: string; // Direct field
+  User?: PlexUserInfo | PlexUserInfo[];
+  Account?: PlexUserInfo | PlexUserInfo[];
+  account?: PlexUserInfo | PlexUserInfo[];
 }
 
 interface PlexResponse {
@@ -34,7 +39,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   
   // Construct the API URL
   // We use standard JSON request headers. 
-  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
+  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&accountID=all&X-Plex-Token=${token}`;
 
   try {
     const response = await fetch(url, {
@@ -74,6 +79,41 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
       return [];
     }
 
+    const normalizeUserInfo = (user: PlexUserInfo | PlexUserInfo[] | undefined): PlexUserInfo | undefined => {
+      if (!user) return undefined;
+      return Array.isArray(user) ? user[0] : user;
+    };
+
+    const extractUserName = (item: PlexMetadata): string => {
+      const normalizedUser = normalizeUserInfo(item.User);
+      const normalizedAccount = normalizeUserInfo(item.Account || item.account);
+
+      const candidates = [
+        item.user,
+        item.username,
+        item.friendlyName,
+        item.userTitle,
+        item.userName,
+        item.accountTitle,
+        item.accountUsername,
+        item.accountFriendlyName,
+        normalizedUser?.title,
+        normalizedUser?.username,
+        normalizedUser?.friendlyName,
+        normalizedUser?.name,
+        normalizedAccount?.title,
+        normalizedAccount?.username,
+        normalizedAccount?.friendlyName,
+        normalizedAccount?.name,
+      ].filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+
+      if (candidates.length > 0) {
+        return candidates[0].trim();
+      }
+
+      return 'Server Owner';
+    };
+
     return data.map((item) => {
         // Map Plex types to our types
         let type: 'movie' | 'episode' | 'track' | 'unknown' = 'unknown';
@@ -95,19 +135,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         const durationMinutes = Math.round(durationMs / 60000);
 
-        // Map User safely - Check multiple possible locations for user info
-        // Plex API can return user info in different fields depending on version/config
-        const userName = 
-          item.user || // Direct field
-          item.username || // Direct username field
-          item.friendlyName || // Direct friendly name
-          item.User?.title || // User object title
-          item.User?.username || // User object username
-          item.User?.friendlyName || // User object friendly name
-          item.Account?.title || // Account object title
-          item.Account?.username || // Account object username
-          item.Account?.friendlyName || // Account object friendly name
-          'Server Owner'; // Fallback
+        const userName = extractUserName(item);
 
         return {
             title: item.title,
