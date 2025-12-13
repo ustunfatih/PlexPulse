@@ -1,5 +1,6 @@
 export const APP_COLORS = {
   plexOrange: '#e5a00d',
+  accent: '#e5a00d',
   plexOrangeDim: 'rgba(229, 160, 13, 0.2)',
   background: '#000000',
   surface: '#15171C',
