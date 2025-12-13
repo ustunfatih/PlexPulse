@@ -55,7 +55,7 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     fetch(buildHistoryUrl(includeAllAccounts), {
       method: 'GET',
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json, text/xml;q=0.9, */*;q=0.8'
       },
       mode: 'cors'
     });
@@ -74,23 +74,27 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
       throw new Error(`Connection failed: ${response.statusText}`);
     }
 
-    const text = await response.text();
+    const rawBody = (await response.text()).trim();
+    if (!rawBody) {
+      return [];
+    }
+
     let data: PlexMetadata[] = [];
 
     // Attempt to parse as JSON first
     try {
-        const jsonData: PlexResponse = JSON.parse(text);
-        if (jsonData.MediaContainer?.Metadata) {
-            data = jsonData.MediaContainer.Metadata;
-        }
+      const jsonData: PlexResponse = JSON.parse(rawBody);
+      if (jsonData.MediaContainer?.Metadata) {
+        data = jsonData.MediaContainer.Metadata;
+      }
     } catch (e) {
-        // If JSON parsing fails, fallback to XML parsing logic just in case the server ignored the Accept header
-        if (text.trim().startsWith('<')) {
-            data = parsePlexXML(text);
-        } else {
-            // It wasn't JSON and it wasn't XML
-            throw new Error("Invalid response format from server.");
-        }
+      // If JSON parsing fails, fallback to XML parsing logic just in case the server ignored the Accept header
+      if (rawBody.startsWith('<')) {
+        data = parsePlexXML(rawBody);
+      } else {
+        // It wasn't JSON and it wasn't XML
+        throw new Error("Invalid response format from server.");
+      }
     }
     
     if (data.length === 0) {
