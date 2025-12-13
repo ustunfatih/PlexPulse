@@ -37,6 +37,19 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   // normalize URL (remove trailing slash)
   const cleanUrl = serverUrl.replace(/\/$/, '');
 
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(cleanUrl);
+  } catch (error) {
+    throw new Error('Invalid server URL. Please include http:// or https://');
+  }
+
+  // Browsers served over HTTPS will block insecure HTTP requests to Plex servers.
+  // Detect this early and present a clear error instead of a silent CORS failure.
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && parsedUrl.protocol === 'http:') {
+    throw new Error('INSECURE_HTTP_OVER_HTTPS');
+  }
+
   const buildHistoryUrl = (includeAllAccounts: boolean) => {
     const params = new URLSearchParams({
       sort: 'viewedAt:desc',

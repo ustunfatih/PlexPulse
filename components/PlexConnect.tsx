@@ -64,7 +64,9 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
     setTimeout(() => setError(null), 2000);
   };
 
-  const isCorsError = error === "CORS_BLOCK" || error?.includes("Failed to fetch") || error?.includes("NetworkError");
+  const isMixedContentError = error === "INSECURE_HTTP_OVER_HTTPS";
+  const isCorsError =
+    isMixedContentError || error === "CORS_BLOCK" || error?.includes("Failed to fetch") || error?.includes("NetworkError");
 
   return (
     <div className="w-full max-w-xl mx-auto glass-card rounded-3xl p-1">
@@ -159,7 +161,11 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
                   <div>
                     <h4 className="text-white font-bold text-sm">Direct Access Blocked</h4>
                     <p className="text-gray-400 text-xs mt-1 leading-relaxed">
-                      Your browser is blocking the connection to <strong>{url}</strong> because the server is not configured to allow third-party apps (CORS).
+                      {isMixedContentError ? (
+                        <>Browsers block insecure <code>http://</code> requests while this site runs over <code>https://</code>. Please expose Plex over HTTPS, use a secure reverse proxy, or open the app from an HTTP host within your network.</>
+                      ) : (
+                        <>Your browser is blocking the connection to <strong>{url}</strong> because the server is not configured to allow third-party apps (CORS).</>
+                      )}
                     </p>
                   </div>
                 </div>
