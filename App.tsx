@@ -104,7 +104,7 @@ const App: React.FC = () => {
                  </h4>
                  <p className="text-sm text-gray-400 leading-relaxed">
                    Enter your <strong>Plex Server URL</strong> and <strong>Token</strong>. 
-                   <br/>Note: Use your external URL (usually port 32400) if possible.
+                   <br/>The app will automatically attempt to bypass any firewalls or browser restrictions.
                  </p>
               </div>
             </div>
