@@ -29,6 +29,12 @@ export interface AnalyticsSummary {
   durationByType: { name: string; value: number; unit?: string }[]; // Updated with unit
 }
 
+export interface ImprovementIdea {
+  title: string;
+  description: string;
+  action: string;
+}
+
 export interface ChartDataPoint {
   name: string;
   value: number;
