@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Server, Key, Loader2, ExternalLink, ShieldAlert, Trash2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Server, Key, Loader2, ExternalLink, ShieldAlert, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
 import { PlayHistoryItem } from '../types';
 
@@ -36,7 +36,7 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
 
     setLoading(true);
     setError(null);
-    setLoadingStatus("Initializing...");
+    setLoadingStatus("Checking network...");
 
     try {
       const data = await fetchPlexHistory(url, token, (status) => {
@@ -45,19 +45,14 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
       
       if (data.length === 0) {
          setLoadingStatus("Success!");
-         // Small delay to show success state before transition?
-         onDataLoaded([]); // Technically empty but valid
+         onDataLoaded([]); 
       } else {
-         setLoadingStatus(`Analyzing ${data.length} items...`);
+         setLoadingStatus(`Processing ${data.length} items...`);
          onDataLoaded(data);
       }
     } catch (err: any) {
       console.error(err);
-      let msg = err.message;
-      if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
-          msg = "Unable to reach server. Please ensure the URL is correct and the server is accessible over the internet.";
-      }
-      setError(msg);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -66,10 +61,8 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
   const handleClearCredentials = () => {
     localStorage.removeItem('plex_url');
     localStorage.removeItem('plex_token');
-    
     if (!process.env.PLEX_SERVER_URL) setUrl('');
     if (!process.env.PLEX_TOKEN) setToken('');
-    
     setError(null);
   };
 
@@ -100,18 +93,22 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
 
         <form onSubmit={handleConnect} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Server URL</label>
+            <div className="flex justify-between items-center ml-1">
+                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Server URL</label>
+            </div>
             <div className="relative group">
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://192.168.1.x:32400"
+                placeholder="https://plex.mydomain.com:32400"
                 className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-4 pl-11 text-white placeholder-gray-600 focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none transition-all font-mono text-sm"
               />
               <Server className="w-4 h-4 text-gray-500 absolute left-4 top-4.5 group-focus-within:text-[#e5a00d] transition-colors" />
             </div>
-            <p className="text-[10px] text-gray-600 ml-1">Must be accessible publicly for best results.</p>
+            <p className="text-[10px] text-gray-500 ml-1 flex items-center gap-1">
+              <Info className="w-3 h-3" /> Use your public/remote URL for best results.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -167,9 +164,9 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
                   <div className="bg-red-500/10 p-2 rounded-lg">
                     <ShieldAlert className="w-5 h-5 text-red-400" />
                   </div>
-                  <div>
+                  <div className="w-full">
                     <h4 className="text-white font-bold text-sm">Connection Failed</h4>
-                    <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                    <p className="text-gray-400 text-xs mt-1 leading-relaxed break-words">
                       {error}
                     </p>
                   </div>
