@@ -30,6 +30,12 @@ export interface AnalyticsSummary {
   dailyTrend?: { date: string; plays: number; hours: number }[]; // Daily trend data
 }
 
+export interface ImprovementIdea {
+  title: string;
+  description: string;
+  action: string;
+}
+
 export interface ChartDataPoint {
   name: string;
   value: number;

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AnalyticsSummary, PlayHistoryItem, TopItem } from '../types';
-import { 
+import {
   HourlyActivityChart, WeeklyActivityChart, MediaTypePieChart, MonthlyTrendChart, DurationDistributionChart, DailyTrendChart,
   UserComparisonChart, UserStatsTable
 } from './Charts';
@@ -10,6 +10,8 @@ import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Pla
 import { exportToCSV, exportSummaryToCSV } from '../services/exportService';
 import { APP_COLORS } from '../constants';
 import { calculateUserComparisons } from '../services/dataProcessing';
+import { ImprovementIdeas } from './ImprovementIdeas';
+import { buildImprovementIdeas } from '../services/insightsService';
 
 interface DashboardProps {
   summary: AnalyticsSummary;
@@ -20,6 +22,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview');
   const userComparisons = React.useMemo(() => calculateUserComparisons(rawData), [rawData]);
+  const improvementIdeas = React.useMemo(() => buildImprovementIdeas(summary), [summary]);
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
@@ -181,6 +184,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
               </div>
             </div>
           )}
+
+          <div className="grid grid-cols-1 gap-6">
+            <ImprovementIdeas ideas={improvementIdeas} />
+          </div>
 
         </div>
       )}

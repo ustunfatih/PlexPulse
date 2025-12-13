@@ -4,7 +4,6 @@ import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
 import { ActivityHeatmap } from './Charts';
 import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays, AlertTriangle, Download, Filter, X } from 'lucide-react';
-import { generateYearlyRecap } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
 import { exportToCSV, exportYearlyReportToCSV } from '../services/exportService';
 
@@ -32,6 +31,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const [yearlyPoster, setYearlyPoster] = useState<string | null>(null);
   const [loadingPoster, setLoadingPoster] = useState(false);
   const [posterError, setPosterError] = useState<string | null>(null);
+  const [posterSupportError, setPosterSupportError] = useState<string | null>(null);
 
   // Extract unique users
   const users = useMemo(() => {
@@ -105,6 +105,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   useEffect(() => {
     setYearlyPoster(null);
     setPosterError(null);
+    setPosterSupportError(null);
   }, [currentReport?.year, selectedMediaType, selectedUser]);
 
   useEffect(() => {
@@ -139,7 +140,21 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     if (!currentReport) return;
     setLoadingPoster(true);
     setPosterError(null);
-    
+    setPosterSupportError(null);
+
+    let generateYearlyRecap: typeof import('../services/geminiService')['generateYearlyRecap'];
+
+    try {
+      ({ generateYearlyRecap } = await import('../services/geminiService'));
+    } catch (importError) {
+      console.error('Failed to load Gemini client', importError);
+      setPosterSupportError(
+        'Yearly poster generation is unavailable in this deployment. Provide a Gemini API key and rebuild to enable it.'
+      );
+      setLoadingPoster(false);
+      return;
+    }
+
     try {
       // Collect the top item from each month
       const topItems = currentReport.monthlyBreakdown
@@ -367,7 +382,16 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
                         </div>
                     )}
 
-                    <button 
+                    {posterSupportError && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl text-left mb-6 w-full animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-start gap-3">
+                          <Info className="w-5 h-5 text-yellow-300 flex-shrink-0" />
+                          <p className="text-xs text-yellow-100">{posterSupportError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
                         onClick={handleGenerateYearlyPoster}
                         disabled={loadingPoster}
                         className="bg-[#e5a00d] hover:bg-[#ffb319] text-black px-8 py-4 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-orange-500/20 active:scale-95 disabled:opacity-50"
