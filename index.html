@@ -44,98 +44,22 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #4b5563;
       }
-
-      /* Animation Utilities */
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      @keyframes fadeInUp {
-        from {
-          opacity: 0;
-          transform: translateY(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @keyframes fadeInZoom {
-        from {
-          opacity: 0;
-          transform: scale(0.95);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
-
-      .animate-fade-in {
-        animation: fadeIn 0.5s ease-in-out;
-      }
-
-      .animate-fade-in-up {
-        animation: fadeInUp 0.6s ease-out;
-      }
-
-      .animate-fade-in.delay-100 {
-        animation: fadeIn 0.5s ease-in-out 0.1s both;
-      }
-
-      .animate-fade-in.delay-200 {
-        animation: fadeIn 0.5s ease-in-out 0.2s both;
-      }
-
-      .animate-in {
-        animation-duration: 0.2s;
-        animation-timing-function: ease-out;
-        animation-fill-mode: both;
-      }
-
-      .fade-in {
-        animation-name: fadeIn;
-      }
-
-      .slide-in-from-bottom-2 {
-        animation-name: slideInFromBottom;
-      }
-
-      @keyframes slideInFromBottom {
-        from {
-          opacity: 0;
-          transform: translateY(8px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .zoom-in-95 {
-        animation-name: zoomIn95;
-      }
-
-      @keyframes zoomIn95 {
-        from {
-          opacity: 0;
-          transform: scale(0.95);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
     </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0"
+  }
+}
+</script>
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

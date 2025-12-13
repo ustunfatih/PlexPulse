@@ -27,7 +27,6 @@ export interface AnalyticsSummary {
   playsByMonth: { month: string; count: number }[];
   mediaTypeDistribution: { name: string; value: number }[];
   durationByType: { name: string; value: number; unit?: string }[]; // Updated with unit
-  dailyTrend?: { date: string; plays: number; hours: number }[]; // Daily trend data
 }
 
 export interface ImprovementIdea {
@@ -45,7 +44,7 @@ export interface ChartDataPoint {
 // --- New Reporting Types ---
 
 export interface HeatmapPoint {
-  day: number; // Weekly mode: 0-6 (Sun-Sat), Monthly mode: 1-31 (day of month)
+  day: number; // 0-6 (Sun-Sat)
   hour: number; // 0-23
   value: number; // intensity/count
 }

@@ -16,7 +16,7 @@ import { PlayHistoryItem } from '../types';
 
 interface PlexConnectProps {
   onDataLoaded: (data: PlayHistoryItem[]) => void;
-  onSwitchToCSV: () => void;
+  onSwitchToCSV?: () => void;
 }
 
 const getInitialValue = (envValue: string | undefined, storageKey: string) => {
@@ -198,7 +198,7 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
 
         {error && (
           <div className="mt-8 animate-fade-in">
-            {isCorsError ? (
+            {isCorsError && onSwitchToCSV ? (
               <div className="bg-[#1C1C1E] border border-orange-500/30 rounded-xl p-5 space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="bg-orange-500/20 p-2 rounded-lg">
@@ -229,13 +229,19 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
                 </div>
               </div>
             ) : (
-              <div className="flex items-start gap-3 text-red-200 bg-red-900/20 border border-red-500/10 p-4 rounded-xl text-sm">
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold mb-1">
-                    {error === 'Credentials cleared from browser storage.' ? 'Success' : 'Error'}
-                  </p>
-                  <p className="opacity-80">{error}</p>
+              <div className="bg-[#1C1C1E] border border-red-500/30 rounded-xl p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-red-500/20 p-2 rounded-lg">
+                    <ShieldAlert className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold text-sm">
+                      {error === 'Credentials cleared from browser storage.' ? 'Success' : 'Connection Failed'}
+                    </h4>
+                    <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+                      {error}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

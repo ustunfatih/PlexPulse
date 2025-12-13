@@ -2,16 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { PlayHistoryItem, AnalyticsSummary } from './types';
 import { processHistoryData, generateMockData } from './services/dataProcessing';
-import { FileUpload } from './components/FileUpload';
 import { PlexConnect } from './components/PlexConnect';
 import { Dashboard } from './components/Dashboard';
-import { Activity, HelpCircle, X, FileSpreadsheet, Server, ArrowRight } from 'lucide-react';
+import { Activity, HelpCircle, X, Server, ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
   const [data, setData] = useState<PlayHistoryItem[] | null>(null);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [inputMethod, setInputMethod] = useState<'file' | 'api'>('api');
 
   useEffect(() => {
     if (data) {
@@ -64,43 +62,18 @@ const App: React.FC = () => {
                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#e5a00d] to-yellow-200">obsession</span>.
                </h1>
                <p className="text-xl text-gray-400 font-light max-w-lg mx-auto leading-relaxed">
-                 Deep insights into your Plex habits. <br className="hidden sm:block"/>Connect your server or drop a file to begin.
+                 Deep insights into your Plex habits. <br className="hidden sm:block"/>Connect your server to begin.
                </p>
              </div>
 
-             {/* Input Method Segmented Toggle - Hick's Law */}
-             <div className="flex p-1 bg-[#1C1C1E] rounded-2xl mb-8 border border-white/5 shadow-inner">
-                <button 
-                  onClick={() => setInputMethod('api')}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-bold text-sm ${
-                    inputMethod === 'api' ? 'bg-[#3A3A3C] text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <Server className="w-4 h-4" /> Connect Plex
-                </button>
-                <button 
-                  onClick={() => setInputMethod('file')}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-bold text-sm ${
-                    inputMethod === 'file' ? 'bg-[#3A3A3C] text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> CSV Upload
-                </button>
-             </div>
-
              {/* Content Area */}
-             <div className="w-full flex justify-center animate-fade-in delay-100">
-               {inputMethod === 'file' ? (
-                 <FileUpload onDataLoaded={setData} />
-               ) : (
+             <div className="w-full flex justify-center animate-fade-in delay-100 mb-8">
                  <PlexConnect 
                     onDataLoaded={setData} 
-                    onSwitchToCSV={() => setInputMethod('file')} 
                  />
-               )}
              </div>
 
-             <div className="mt-12 flex items-center gap-4 animate-fade-in delay-200">
+             <div className="flex items-center gap-4 animate-fade-in delay-200">
                 <button 
                   onClick={handleDemo}
                   className="group flex items-center gap-2 px-6 py-2 rounded-full text-gray-500 hover:text-white transition-colors text-sm font-medium"
@@ -131,20 +104,8 @@ const App: React.FC = () => {
                  </h4>
                  <p className="text-sm text-gray-400 leading-relaxed">
                    Enter your <strong>Plex Server URL</strong> and <strong>Token</strong>. 
-                   <br/>Note: Use your external URL if possible. Ad-blockers may block local IP requests.
+                   <br/>Note: Use your external URL (usually port 32400) if possible.
                  </p>
-              </div>
-
-              <div className="bg-[#1C1C1E] p-5 rounded-2xl border border-white/5">
-                <h4 className="font-bold text-white mb-2 flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-green-400" /> Tautulli Export
-                </h4>
-                <ol className="list-decimal list-inside text-sm space-y-1 text-gray-400 ml-1">
-                  <li>Open Tautulli › History</li>
-                  <li>Click Export (bottom of page)</li>
-                  <li>Format: CSV</li>
-                  <li>Columns: Title, Date (Required)</li>
-                </ol>
               </div>
             </div>
           </div>

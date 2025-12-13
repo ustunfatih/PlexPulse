@@ -6,8 +6,8 @@ import {
   UserComparisonChart, UserStatsTable
 } from './Charts';
 import { Reports } from './Reports';
-import { Clock, Calendar, Film, Tv, Sparkles, LayoutDashboard, FileBarChart, Play, Hourglass, PieChart, TrendingUp, Download, Users } from 'lucide-react';
-import { exportToCSV, exportSummaryToCSV } from '../services/exportService';
+import { Clock, Calendar, Film, Tv, LayoutDashboard, FileBarChart, Play, Hourglass, TrendingUp, Download, Users } from 'lucide-react';
+import { exportSummaryToCSV } from '../services/exportService';
 import { APP_COLORS } from '../constants';
 import { calculateUserComparisons } from '../services/dataProcessing';
 import { ImprovementIdeas } from './ImprovementIdeas';
@@ -26,7 +26,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
-      
+
       {/* iOS Style Segmented Control Navigation */}
       <div className="sticky top-16 z-40 py-6">
         <div className="flex justify-between items-center">
@@ -35,8 +35,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             <button
                 onClick={() => setActiveTab('overview')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
-                activeTab === 'overview' 
-                    ? 'bg-[#3A3A3C] text-white shadow-md' 
+                activeTab === 'overview'
+                    ? 'bg-[#3A3A3C] text-white shadow-md'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
             >
@@ -45,8 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
             <button
                 onClick={() => setActiveTab('reports')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${
-                activeTab === 'reports' 
-                    ? 'bg-[#3A3A3C] text-white shadow-md' 
+                activeTab === 'reports'
+                    ? 'bg-[#3A3A3C] text-white shadow-md'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
             >
@@ -62,7 +62,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
               >
                 <Download className="w-4 h-4" /> Export CSV
               </button>
-              <button 
+              <button
                 onClick={onReset}
                 className="hidden sm:block text-xs font-medium text-gray-500 hover:text-[#e5a00d] transition-colors"
               >
@@ -76,7 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
         <Reports data={rawData} />
       ) : (
         <div className="animate-fade-in space-y-6">
-          
+
           {/* Hero Section: Von Restorff Effect (Isolation) */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
              <div className="col-span-1 md:col-span-8 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group">
@@ -114,7 +114,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ summary, rawData, onReset 
 
           {/* Bento Grid Layout - Miller's Law (Chunking) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
+
             {/* Chart: Activity Over Time */}
             <div className="lg:col-span-2 glass-card rounded-3xl p-6">
                 <div className="flex items-center gap-3 mb-6">
@@ -250,16 +250,16 @@ const TopListCard = ({ title, items, icon }: { title: string, items: TopItem[], 
             <div className="bg-gray-800/50 p-2 rounded-lg">{icon}</div>
             <h3 className="font-bold text-lg">{title}</h3>
         </div>
-        
+
         {/* Sort Controls - Tiny Segmented Control */}
         <div className="flex bg-[#2C2C2E] p-1 rounded-lg">
-           <button 
+           <button
              onClick={() => setSort('count')}
              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${sort === 'count' ? 'bg-[#636366] text-white shadow' : 'text-gray-400'}`}
            >
              Plays
            </button>
-           <button 
+           <button
              onClick={() => setSort('duration')}
              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${sort === 'duration' ? 'bg-[#636366] text-white shadow' : 'text-gray-400'}`}
            >
@@ -290,8 +290,8 @@ const TopListCard = ({ title, items, icon }: { title: string, items: TopItem[], 
               </div>
             </div>
             <span className="text-sm text-gray-400 font-mono ml-2 whitespace-nowrap bg-black/20 px-2 py-1 rounded-md">
-               {sort === 'duration' 
-                  ? `${item.totalDurationMinutes}m` 
+               {sort === 'duration'
+                  ? `${item.totalDurationMinutes}m`
                   : `${item.count}`
                }
             </span>
