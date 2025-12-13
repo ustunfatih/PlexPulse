@@ -1,3 +1,4 @@
+
 import { PlayHistoryItem } from '../types';
 
 interface PlexMetadata {
@@ -26,87 +27,100 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   const cleanUrl = serverUrl.replace(/\/$/, '');
   
   // Construct the API URL
-  // Strategy: NO custom headers. NO mode: 'cors' (let it default).
-  // We use the URL param for the token, which worked in the browser address bar.
-  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
+  const targetUrl = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
+
+  let response: Response;
+  let usedProxy = false;
 
   try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      if (response.status === 401) throw new Error("Invalid Plex Token.");
-      if (response.status === 404) throw new Error("Server not found. Check URL.");
-      throw new Error(`Connection failed: ${response.statusText}`);
-    }
-
-    const text = await response.text();
-    let data: PlexMetadata[] = [];
-
-    // The server will likely return XML since we didn't explicitly ask for JSON
-    // We try JSON just in case, but expect to fall through to XML.
+    // Attempt 1: Direct Connection
     try {
-        const jsonData: PlexResponse = JSON.parse(text);
-        if (jsonData.MediaContainer?.Metadata) {
-            data = jsonData.MediaContainer.Metadata;
-        }
-    } catch (e) {
-        if (text.trim().startsWith('<')) {
-            data = parsePlexXML(text);
-        } else {
-            throw new Error("Invalid response format from server.");
-        }
+        response = await fetch(targetUrl);
+    } catch (directError) {
+        // If direct fetch fails (likely CORS), throw to catch block below to trigger proxy
+        throw new Error("Direct connection failed");
     }
+
+    // Check if response is ok, if not (and it's a CORS issue disguised as a network error), throw
+    if (!response.ok && response.status === 0) {
+        throw new Error("CORS Opaque");
+    }
+
+  } catch (e) {
+    // Attempt 2: Proxy Fallback
+    // If the browser blocked the direct connection, we route it through a standard CORS proxy.
+    // This adds the necessary headers to satisfy the browser's security requirements.
+    console.log("Direct connection failed, attempting proxy fallback...");
+    usedProxy = true;
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
     
-    if (data.length === 0) {
-      return [];
+    try {
+        response = await fetch(proxyUrl);
+    } catch (proxyError) {
+        // If even the proxy fails, we are out of options
+        throw new Error("Connection failed. Your server is not reachable directly or via proxy. Ensure it is accessible from the internet.");
     }
-
-    return data.map((item) => {
-        // Map Plex types to our types
-        let type: 'movie' | 'episode' | 'track' | 'unknown' = 'unknown';
-        if (item.type === 'movie') type = 'movie';
-        else if (item.type === 'episode') type = 'episode';
-        else if (item.type === 'track') type = 'track';
-
-        // Calculate duration safely
-        let durationMs = item.duration;
-        
-        // FALLBACK: If duration is missing or 0 (common in some Plex history logs),
-        // estimate based on type to prevent "NaN" or "0 hours" reports.
-        if (!durationMs || durationMs === 0) {
-           if (type === 'movie') durationMs = 120 * 60 * 1000; // Assume 2 hours
-           else if (type === 'episode') durationMs = 30 * 60 * 1000; // Assume 30 mins
-           else if (type === 'track') durationMs = 3 * 60 * 1000; // Assume 3 mins
-           else durationMs = 0;
-        }
-
-        const durationMinutes = Math.round(durationMs / 60000);
-
-        // Map User safely (Check User object, then Account object, then default)
-        const userName = item.User?.title || item.Account?.title || 'Server Owner';
-
-        return {
-            title: item.title,
-            grandparentTitle: item.grandparentTitle,
-            parentTitle: item.parentTitle,
-            // viewedAt is unix timestamp in seconds
-            date: new Date(item.viewedAt * 1000), 
-            durationMinutes: isNaN(durationMinutes) ? 0 : durationMinutes,
-            type: type,
-            user: userName
-        };
-    });
-
-  } catch (error: any) {
-    if (error.name === 'TypeError' && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
-       // We only throw the text here so the UI can display it
-       throw new Error("Connection Blocked by Browser. Your Plex server is refusing the connection. Ensure your server URL is correct and accessible.");
-    }
-    throw error;
   }
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Invalid Plex Token.");
+    if (response.status === 404) throw new Error("Server not found. Check URL.");
+    throw new Error(`Connection failed: ${response.statusText}`);
+  }
+
+  const text = await response.text();
+  let data: PlexMetadata[] = [];
+
+  try {
+      const jsonData: PlexResponse = JSON.parse(text);
+      if (jsonData.MediaContainer?.Metadata) {
+          data = jsonData.MediaContainer.Metadata;
+      }
+  } catch (e) {
+      // If the proxy returns raw text/xml, handle it here
+      if (text.trim().startsWith('<')) {
+          data = parsePlexXML(text);
+      } else {
+          throw new Error("Invalid response format from server.");
+      }
+  }
+  
+  if (data.length === 0) {
+    return [];
+  }
+
+  return data.map((item) => {
+      // Map Plex types to our types
+      let type: 'movie' | 'episode' | 'track' | 'unknown' = 'unknown';
+      if (item.type === 'movie') type = 'movie';
+      else if (item.type === 'episode') type = 'episode';
+      else if (item.type === 'track') type = 'track';
+
+      // Calculate duration safely
+      let durationMs = item.duration;
+      
+      if (!durationMs || durationMs === 0) {
+         if (type === 'movie') durationMs = 120 * 60 * 1000; 
+         else if (type === 'episode') durationMs = 30 * 60 * 1000;
+         else if (type === 'track') durationMs = 3 * 60 * 1000;
+         else durationMs = 0;
+      }
+
+      const durationMinutes = Math.round(durationMs / 60000);
+      const userName = item.User?.title || item.Account?.title || 'Server Owner';
+
+      return {
+          title: item.title,
+          grandparentTitle: item.grandparentTitle,
+          parentTitle: item.parentTitle,
+          date: new Date(item.viewedAt * 1000), 
+          durationMinutes: isNaN(durationMinutes) ? 0 : durationMinutes,
+          type: type,
+          user: userName
+      };
+  });
 };
 
-// Helper function to parse XML response if JSON fails
 const parsePlexXML = (xmlText: string): PlexMetadata[] => {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, "text/xml");

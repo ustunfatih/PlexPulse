@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Trash2, Eye, EyeOff } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
 import { PlayHistoryItem } from '../types';
@@ -9,7 +9,6 @@ interface PlexConnectProps {
 }
 
 export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
-  // Security Upgrade: Check environment variables first, then LocalStorage, then default to empty.
   const [url, setUrl] = useState(() => {
     return process.env.PLEX_SERVER_URL || localStorage.getItem('plex_url') || '';
   });
@@ -31,7 +30,6 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
       return;
     }
 
-    // Persist credentials to Local Storage
     if (!process.env.PLEX_SERVER_URL) localStorage.setItem('plex_url', url);
     if (!process.env.PLEX_TOKEN) localStorage.setItem('plex_token', token);
 
