@@ -3,10 +3,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { PlayHistoryItem } from '../types';
 import { processReports, generateMonthlyHeatmap } from '../services/dataProcessing';
 import { ActivityHeatmap } from './Charts';
-import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays, AlertTriangle, Download, Filter, X } from 'lucide-react';
+import { Calendar, Flame, Clock, ChevronLeft, ChevronRight, Zap, Users, ChevronDown, Grid, LayoutGrid, Info, Image as ImageIcon, Loader2, Maximize2, Clapperboard, Tv, Film, CalendarDays, AlertTriangle } from 'lucide-react';
 import { generateYearlyRecap } from '../services/geminiService';
 import { APP_COLORS } from '../constants';
-import { exportToCSV, exportYearlyReportToCSV } from '../services/exportService';
 
 interface ReportsProps {
   data: PlayHistoryItem[];
@@ -16,12 +15,6 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedMediaType, setSelectedMediaType] = useState<'all' | 'movie' | 'episode'>('all');
   const [yearIndex, setYearIndex] = useState(0);
-  
-  // Advanced Filters
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
-  const [minDuration, setMinDuration] = useState<number | ''>('');
-  const [maxDuration, setMaxDuration] = useState<number | ''>('');
   
   // Heatmap State
   const [heatmapMode, setHeatmapMode] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
@@ -37,16 +30,9 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
   const users = useMemo(() => {
     const u = new Set<string>();
     data.forEach(d => {
-      if (d.user && d.user.trim()) {
-        u.add(d.user.trim());
-      }
+      if (d.user) u.add(d.user);
     });
-    const userList = Array.from(u).sort();
-    // Debug: Log users to console (can be removed later)
-    if (userList.length > 0) {
-      console.log('Found users:', userList);
-    }
-    return userList;
+    return Array.from(u).sort();
   }, [data]);
 
   useEffect(() => {
@@ -55,7 +41,7 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
     }
   }, [users, selectedUser]);
 
-  // Filter Data based on User, Media Type, and Advanced Filters
+  // Filter Data based on User AND Media Type
   const filteredData = useMemo(() => {
     let d = data;
     
@@ -71,27 +57,8 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
       d = d.filter(x => x.type === 'episode');
     }
 
-    // Advanced Filters: Date Range
-    if (dateRange.start) {
-      const startDate = new Date(dateRange.start);
-      d = d.filter(x => x.date && x.date >= startDate);
-    }
-    if (dateRange.end) {
-      const endDate = new Date(dateRange.end);
-      endDate.setHours(23, 59, 59, 999); // Include entire end date
-      d = d.filter(x => x.date && x.date <= endDate);
-    }
-
-    // Advanced Filters: Duration Range
-    if (minDuration !== '') {
-      d = d.filter(x => (x.durationMinutes || 0) >= minDuration);
-    }
-    if (maxDuration !== '') {
-      d = d.filter(x => (x.durationMinutes || 0) <= maxDuration);
-    }
-
     return d;
-  }, [data, selectedUser, selectedMediaType, dateRange, minDuration, maxDuration]);
+  }, [data, selectedUser, selectedMediaType]);
 
   const reports = useMemo(() => processReports(filteredData), [filteredData]);
 
@@ -219,101 +186,10 @@ export const Reports: React.FC<ReportsProps> = ({ data }) => {
             </button>
          </div>
 
-         {/* Filters and Export */}
-         <div className="flex flex-col gap-3 w-full xl:w-auto">
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <MediaTypeSelector selected={selectedMediaType} onSelect={setSelectedMediaType} />
-              <UserFilterDropdown users={users} selected={selectedUser} onSelect={setSelectedUser} />
-              <button
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  showAdvancedFilters 
-                    ? 'bg-[#e5a00d] text-black' 
-                    : 'bg-[#1C1C1E] hover:bg-[#3A3A3C] border border-white/10 text-gray-300 hover:text-white'
-                }`}
-              >
-                <Filter className="w-4 h-4" /> Advanced
-              </button>
-              {currentReport && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => exportToCSV(filteredData, `plexpulse-data-${currentReport.year}.csv`)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] hover:bg-[#3A3A3C] border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all"
-                    title="Export filtered data to CSV"
-                  >
-                    <Download className="w-4 h-4" /> Data CSV
-                  </button>
-                  <button
-                    onClick={() => exportYearlyReportToCSV(currentReport)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] hover:bg-[#3A3A3C] border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all"
-                    title="Export yearly report to CSV"
-                  >
-                    <Download className="w-4 h-4" /> Report CSV
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            {/* Advanced Filters Panel */}
-            {showAdvancedFilters && (
-              <div className="glass-card p-4 rounded-xl border border-white/10 animate-fade-in">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-bold text-white">Advanced Filters</h4>
-                  <button
-                    onClick={() => {
-                      setDateRange({ start: '', end: '' });
-                      setMinDuration('');
-                      setMaxDuration('');
-                    }}
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
-                  >
-                    Clear All
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Start Date</label>
-                    <input
-                      type="date"
-                      value={dateRange.start}
-                      onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                      className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-2 text-white text-sm focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">End Date</label>
-                    <input
-                      type="date"
-                      value={dateRange.end}
-                      onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                      className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-2 text-white text-sm focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Min Duration (min)</label>
-                    <input
-                      type="number"
-                      value={minDuration}
-                      onChange={(e) => setMinDuration(e.target.value ? parseInt(e.target.value) : '')}
-                      placeholder="Any"
-                      min="0"
-                      className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-2 text-white text-sm focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Max Duration (min)</label>
-                    <input
-                      type="number"
-                      value={maxDuration}
-                      onChange={(e) => setMaxDuration(e.target.value ? parseInt(e.target.value) : '')}
-                      placeholder="Any"
-                      min="0"
-                      className="w-full bg-[#0f1115] border border-gray-800 rounded-xl p-2 text-white text-sm focus:border-[#e5a00d] focus:ring-1 focus:ring-[#e5a00d] outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+         {/* Filters */}
+         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+            <MediaTypeSelector selected={selectedMediaType} onSelect={setSelectedMediaType} />
+            <UserFilterDropdown users={users} selected={selectedUser} onSelect={setSelectedUser} />
          </div>
       </div>
 

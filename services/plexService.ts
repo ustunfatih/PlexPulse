@@ -1,12 +1,5 @@
 import { PlayHistoryItem } from '../types';
 
-interface PlexUserInfo {
-  title?: string;
-  username?: string;
-  friendlyName?: string;
-  name?: string;
-}
-
 interface PlexMetadata {
   title: string;
   grandparentTitle?: string;
@@ -14,27 +7,12 @@ interface PlexMetadata {
   type: string;
   viewedAt: number; // Unix timestamp
   duration?: number; // ms, optional
-  accountTitle?: string;
-  accountUsername?: string;
-  accountFriendlyName?: string;
-  userTitle?: string;
-  userName?: string;
   User?: {
-    title?: string;
-    username?: string;
-    friendlyName?: string;
+    title: string;
   };
   Account?: {
-    title?: string;
-    username?: string;
-    friendlyName?: string;
+    title: string;
   };
-  user?: string; // Direct field
-  username?: string; // Direct field
-  friendlyName?: string; // Direct field
-  User?: PlexUserInfo | PlexUserInfo[];
-  Account?: PlexUserInfo | PlexUserInfo[];
-  account?: PlexUserInfo | PlexUserInfo[];
 }
 
 interface PlexResponse {
@@ -48,28 +26,12 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
   const cleanUrl = serverUrl.replace(/\/$/, '');
   
   // Construct the API URL
-  // We use standard JSON request headers. 
-  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&accountID=all&X-Plex-Token=${token}`;
-
-  const buildHistoryUrl = (includeAllAccounts: boolean) =>
-    `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000${includeAllAccounts ? '&accountID=all' : ''}&X-Plex-Token=${token}`;
-
-  const requestHistory = async (includeAllAccounts: boolean) =>
-    fetch(buildHistoryUrl(includeAllAccounts), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      },
-      mode: 'cors'
-    });
+  // Strategy: NO custom headers. NO mode: 'cors' (let it default).
+  // We use the URL param for the token, which worked in the browser address bar.
+  const url = `${cleanUrl}/status/sessions/history/all?sort=viewedAt:desc&limit=5000&X-Plex-Token=${token}`;
 
   try {
-    // Some Plex deployments reject accountID=all with 400. Try that first and gracefully
-    // fall back to the legacy request if needed so the user can still sign in.
-    let response = await requestHistory(true);
-    if (response.status === 400) {
-      response = await requestHistory(false);
-    }
+    const response = await fetch(url);
 
     if (!response.ok) {
       if (response.status === 401) throw new Error("Invalid Plex Token.");
@@ -80,18 +42,17 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     const text = await response.text();
     let data: PlexMetadata[] = [];
 
-    // Attempt to parse as JSON first
+    // The server will likely return XML since we didn't explicitly ask for JSON
+    // We try JSON just in case, but expect to fall through to XML.
     try {
         const jsonData: PlexResponse = JSON.parse(text);
         if (jsonData.MediaContainer?.Metadata) {
             data = jsonData.MediaContainer.Metadata;
         }
     } catch (e) {
-        // If JSON parsing fails, fallback to XML parsing logic just in case the server ignored the Accept header
         if (text.trim().startsWith('<')) {
             data = parsePlexXML(text);
         } else {
-            // It wasn't JSON and it wasn't XML
             throw new Error("Invalid response format from server.");
         }
     }
@@ -99,41 +60,6 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     if (data.length === 0) {
       return [];
     }
-
-    const normalizeUserInfo = (user: PlexUserInfo | PlexUserInfo[] | undefined): PlexUserInfo | undefined => {
-      if (!user) return undefined;
-      return Array.isArray(user) ? user[0] : user;
-    };
-
-    const extractUserName = (item: PlexMetadata): string => {
-      const normalizedUser = normalizeUserInfo(item.User);
-      const normalizedAccount = normalizeUserInfo(item.Account || item.account);
-
-      const candidates = [
-        item.user,
-        item.username,
-        item.friendlyName,
-        item.userTitle,
-        item.userName,
-        item.accountTitle,
-        item.accountUsername,
-        item.accountFriendlyName,
-        normalizedUser?.title,
-        normalizedUser?.username,
-        normalizedUser?.friendlyName,
-        normalizedUser?.name,
-        normalizedAccount?.title,
-        normalizedAccount?.username,
-        normalizedAccount?.friendlyName,
-        normalizedAccount?.name,
-      ].filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
-
-      if (candidates.length > 0) {
-        return candidates[0].trim();
-      }
-
-      return 'Server Owner';
-    };
 
     return data.map((item) => {
         // Map Plex types to our types
@@ -156,23 +82,8 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
 
         const durationMinutes = Math.round(durationMs / 60000);
 
-        const userName = extractUserName(item);
-        // Map User safely - Check multiple possible locations for user info
-        // Plex API can return user info in different fields depending on version/config
-        const userName =
-          item.user || // Direct field
-          item.username || // Direct username field
-          item.friendlyName || // Direct friendly name
-          item.accountTitle || // Some servers expose account info as flat fields
-          item.accountUsername ||
-          item.accountFriendlyName ||
-          item.User?.title || // User object title
-          item.User?.username || // User object username
-          item.User?.friendlyName || // User object friendly name
-          item.Account?.title || // Account object title
-          item.Account?.username || // Account object username
-          item.Account?.friendlyName || // Account object friendly name
-          'Server Owner'; // Fallback
+        // Map User safely (Check User object, then Account object, then default)
+        const userName = item.User?.title || item.Account?.title || 'Server Owner';
 
         return {
             title: item.title,
@@ -187,9 +98,9 @@ export const fetchPlexHistory = async (serverUrl: string, token: string): Promis
     });
 
   } catch (error: any) {
-    // Specifically identify CORS/Network errors to update UI accordingly
     if (error.name === 'TypeError' && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
-      throw new Error("CORS_BLOCK");
+       // We only throw the text here so the UI can display it
+       throw new Error("Connection Blocked by Browser. Your Plex server is refusing the connection. Ensure your server URL is correct and accessible.");
     }
     throw error;
   }
@@ -210,43 +121,6 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
             const viewedAt = parseInt(node.getAttribute('viewedAt') || '0');
             if (viewedAt === 0) continue;
 
-            // Extract user name from various possible attributes
-            // Plex XML may have: user, username, accountTitle, friendlyName, or nested User/Account elements
-            let userName = node.getAttribute('username') || 
-                          node.getAttribute('user') || 
-                          node.getAttribute('accountTitle') || 
-                          node.getAttribute('friendlyName') ||
-                          '';
-            
-            // Check for nested User element
-            if (!userName) {
-              const userElement = node.getElementsByTagName('User')[0];
-              if (userElement) {
-                userName = userElement.getAttribute('title') || 
-                          userElement.getAttribute('username') || 
-                          userElement.getAttribute('friendlyName') || 
-                          userElement.textContent?.trim() || 
-                          '';
-              }
-            }
-            
-            // Check for nested Account element
-            if (!userName) {
-              const accountElement = node.getElementsByTagName('Account')[0];
-              if (accountElement) {
-                userName = accountElement.getAttribute('title') || 
-                          accountElement.getAttribute('username') || 
-                          accountElement.getAttribute('friendlyName') || 
-                          accountElement.textContent?.trim() || 
-                          '';
-              }
-            }
-            
-            // Fallback to Server Owner if still empty
-            if (!userName) {
-              userName = 'Server Owner';
-            }
-            
             items.push({
                 title: node.getAttribute('title') || 'Unknown',
                 grandparentTitle: node.getAttribute('grandparentTitle') || undefined,
@@ -254,9 +128,8 @@ const parsePlexXML = (xmlText: string): PlexMetadata[] => {
                 type: node.getAttribute('type') || 'unknown',
                 viewedAt: viewedAt,
                 duration: parseInt(node.getAttribute('duration') || '0'),
-                user: userName,
-                User: { title: userName },
-                Account: { title: userName } 
+                User: { title: node.getAttribute('user') || '' },
+                Account: { title: node.getAttribute('accountID') || 'User' } 
             });
         }
     };

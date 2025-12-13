@@ -1,15 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Globe, FileSpreadsheet, RefreshCw, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Server, Key, AlertCircle, Loader2, ExternalLink, ShieldAlert, Trash2, Eye, EyeOff } from 'lucide-react';
 import { fetchPlexHistory } from '../services/plexService';
 import { PlayHistoryItem } from '../types';
 
 interface PlexConnectProps {
   onDataLoaded: (data: PlayHistoryItem[]) => void;
-  onSwitchToCSV: () => void;
 }
 
-export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitchToCSV }) => {
+export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded }) => {
   // Security Upgrade: Check environment variables first, then LocalStorage, then default to empty.
   const [url, setUrl] = useState(() => {
     return process.env.PLEX_SERVER_URL || localStorage.getItem('plex_url') || '';
@@ -63,8 +62,6 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
     setError("Credentials cleared from browser storage.");
     setTimeout(() => setError(null), 2000);
   };
-
-  const isCorsError = error === "CORS_BLOCK" || error?.includes("Failed to fetch") || error?.includes("NetworkError");
 
   return (
     <div className="w-full max-w-xl mx-auto glass-card rounded-3xl p-1">
@@ -147,46 +144,21 @@ export const PlexConnect: React.FC<PlexConnectProps> = ({ onDataLoaded, onSwitch
           </button>
         </form>
         
-        {/* Simplified Error Handling */}
         {error && (
           <div className="mt-8 animate-fade-in">
-            {isCorsError ? (
-              <div className="bg-[#1C1C1E] border border-orange-500/30 rounded-xl p-5 space-y-4">
+              <div className="bg-[#1C1C1E] border border-red-500/30 rounded-xl p-5 space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="bg-orange-500/20 p-2 rounded-lg">
-                    <ShieldAlert className="w-5 h-5 text-orange-400" />
+                  <div className="bg-red-500/20 p-2 rounded-lg">
+                    <ShieldAlert className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-sm">Direct Access Blocked</h4>
+                    <h4 className="text-white font-bold text-sm">Connection Failed</h4>
                     <p className="text-gray-400 text-xs mt-1 leading-relaxed">
-                      Your browser is blocking the connection to <strong>{url}</strong> because the server is not configured to allow third-party apps (CORS).
+                      {error}
                     </p>
                   </div>
                 </div>
-
-                <div className="bg-black/40 rounded-lg p-4 border border-white/5 flex flex-col items-center text-center space-y-3">
-                   <p className="text-gray-300 text-sm font-medium">
-                     Don't worry! You can still use the app by uploading a history file.
-                   </p>
-                   <button 
-                     onClick={onSwitchToCSV}
-                     className="w-full flex items-center justify-center gap-2 bg-[#e5a00d]/10 hover:bg-[#e5a00d]/20 text-[#e5a00d] border border-[#e5a00d]/50 py-3 rounded-xl font-bold transition-all text-sm"
-                   >
-                     <FileSpreadsheet className="w-4 h-4" /> Switch to CSV Upload
-                   </button>
-                </div>
               </div>
-            ) : (
-              <div className="flex items-start gap-3 text-red-200 bg-red-900/20 border border-red-500/10 p-4 rounded-xl text-sm">
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold mb-1">
-                    {error === "Credentials cleared from browser storage." ? "Success" : "Error"}
-                  </p>
-                  <p className="opacity-80">{error}</p>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

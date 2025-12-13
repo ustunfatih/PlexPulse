@@ -92,38 +92,6 @@ export const processHistoryData = (data: PlayHistoryItem[]): AnalyticsSummary =>
 
   summary.totalDurationHours = Math.round(summary.totalDurationHours || 0);
 
-  // Calculate daily trend (last 90 days)
-  const dailyTrend: Record<string, { plays: number; hours: number }> = {};
-  const now = new Date();
-  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  
-  data.forEach(item => {
-    if (!item.date || isNaN(item.date.getTime())) return;
-    if (item.date < ninetyDaysAgo) return;
-    
-    const dateKey = item.date.toISOString().split('T')[0]; // YYYY-MM-DD
-    if (!dailyTrend[dateKey]) {
-      dailyTrend[dateKey] = { plays: 0, hours: 0 };
-    }
-    dailyTrend[dateKey].plays++;
-    dailyTrend[dateKey].hours += (item.durationMinutes || 0) / 60;
-  });
-
-  // Fill in missing days and sort
-  const dailyTrendArray: { date: string; plays: number; hours: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
-    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    const dateKey = date.toISOString().split('T')[0];
-    const data = dailyTrend[dateKey] || { plays: 0, hours: 0 };
-    dailyTrendArray.push({
-      date: dateKey,
-      plays: data.plays,
-      hours: Math.round(data.hours * 10) / 10
-    });
-  }
-
-  summary.dailyTrend = dailyTrendArray;
-
   return summary;
 };
 
@@ -240,25 +208,18 @@ export const processReports = (data: PlayHistoryItem[]): YearlyReport[] => {
     let currentStreak = 0;
     let prevTime = 0;
     const oneDay = 24 * 60 * 60 * 1000;
-    // Small tolerance for timezone/daylight saving adjustments (1 hour)
-    const tolerance = 60 * 60 * 1000;
 
     uniqueDays.forEach((time, index) => {
       if (index === 0) {
         currentStreak = 1;
       } else {
-        const timeDiff = time - prevTime;
-        // Calculate difference in days with small tolerance for edge cases
-        const diffDays = Math.round((timeDiff - tolerance) / oneDay);
-        
-        if (diffDays === 1) {
-          // Consecutive day - continue streak
-          currentStreak++;
-        } else if (diffDays > 1 || diffDays < 0) {
-          // Gap of more than 1 day, or negative (shouldn't happen but safety check)
+        if (time - prevTime <= oneDay + 10000000) { 
+           const diffDays = Math.round((time - prevTime) / oneDay);
+           if (diffDays === 1) currentStreak++;
+           else if (diffDays > 1) currentStreak = 1;
+        } else {
           currentStreak = 1;
         }
-        // diffDays === 0 means same day (shouldn't happen due to uniqueDays, but if it does, keep streak)
       }
       if (currentStreak > maxStreak) maxStreak = currentStreak;
       prevTime = time;
@@ -354,52 +315,4 @@ export const generateMockData = (): PlayHistoryItem[] => {
     }
   }
   return items.sort((a, b) => a.date.getTime() - b.date.getTime());
-};
-
-export interface UserComparison {
-  userName: string;
-  totalPlays: number;
-  totalHours: number;
-  avgSessionMinutes: number;
-  topContent: { name: string; count: number }[];
-}
-
-export const calculateUserComparisons = (data: PlayHistoryItem[]): UserComparison[] => {
-  const userStats: Record<string, {
-    plays: number;
-    totalMinutes: number;
-    contentCounts: Record<string, number>;
-  }> = {};
-
-  data.forEach(item => {
-    const userName = item.user || 'Unknown';
-    if (!userStats[userName]) {
-      userStats[userName] = {
-        plays: 0,
-        totalMinutes: 0,
-        contentCounts: {}
-      };
-    }
-
-    userStats[userName].plays++;
-    userStats[userName].totalMinutes += item.durationMinutes || 0;
-
-    const contentName = item.title || 'Unknown';
-    userStats[userName].contentCounts[contentName] = (userStats[userName].contentCounts[contentName] || 0) + 1;
-  });
-
-  return Object.entries(userStats).map(([userName, stats]) => {
-    const topContent = Object.entries(stats.contentCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
-
-    return {
-      userName,
-      totalPlays: stats.plays,
-      totalHours: Math.round((stats.totalMinutes / 60) * 10) / 10,
-      avgSessionMinutes: stats.plays > 0 ? Math.round((stats.totalMinutes / stats.plays) * 10) / 10 : 0,
-      topContent
-    };
-  }).sort((a, b) => b.totalHours - a.totalHours);
 };
